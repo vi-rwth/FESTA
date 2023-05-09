@@ -13,7 +13,7 @@ The MD-output directory has to include a PDB-file and a COLVAR-file. If multiple
 Input parameters: {MD-output directory} {threshold/auto} {frozen atom number}.<br>
 All input parameters have to be specified.
 
-The threshold-values correspond to the free energy specified in the FES-file. If auto is chosen, the lowest 2/7 of the total free energy span are considered as the energy of the minima.
+The threshold-values correspond to the free energy specified in the FES-file. If "auto" is chosen, the lowest 2/7 of the total free energy span are considered as the energy of the minima.
 
 ### Created PDB-files
 
