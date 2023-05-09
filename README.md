@@ -1,16 +1,16 @@
 # structure-from-fes
 
-Program uses numpy, os, sys, time, itertools, shapely, copy, muliprocessing and tqdm modules. These have to be installed before running the program.
+The scripts use numpy, os, sys, time, itertools, shapely, copy, muliprocessing and tqdm modules. These have to be installed before running the scripts.
 
-Program has to be started in parent directory of MD-output directory.
-Parent directory has to include FES-file named fes_{MD-output directory}_{other}.dat.
-MD-output directory has to include PDB-file and COLVAR-file.
-Only x,y,z, atom-type and atom-number columns will be copied from trajectory PDB-file to minimum PDB-file. Other columns will be filled with zeros.
+The script has to be started in the parent directory of the MD-output directory.
+The Parent directory has to include a FES-file named fes_{MD-output directory}_{other}.dat.
+The MD-output directory has to include a PDB-file and a COLVAR-file. If multiple PDB-files are present, the largest one will be used.
+Only x,y,z, atom-type and atom-number columns will be copied from the trajectory PDB-file to the minimum PDB-file. Other columns will be filled with zeros.
 
-Input parameters: {MD-output directory} {threshold/auto} {Frozen_atom_number}.
+Input parameters: {MD-output directory} {threshold/auto} {frozen atom number}.
 All input parameters have to be specified.
 
-Minima frames will be printed in (for each distinctive minimum) separate PDB-files inside MD-output directory in "minima" directory.
+The Minima frames will be printed in (for each distinctive minimum) separate PDB-files inside the MD-output directory in "minima" directory.
 Average a and b for each minimum will be printed in the TITLE line inside the PDB-files.
 Frozen atom specified in input will be used to fix this atom in the minimum PDB-file, avoiding jumps between frames.
 Periodic boundary conditions will be neglected.
