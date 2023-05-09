@@ -20,4 +20,4 @@ Periodic boundary conditions will be neglected.
 It is advised to use FES-histograms with sufficient bins, since the tolerance of the minimum frame identification and mapping of minima
 depend on the bin quantity.
 The multiprocessing version might show significant use of memory. In case this behavior is problematic for the used machine it is advised to use the
-serial version of the program.
+serial script.
