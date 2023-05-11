@@ -157,8 +157,7 @@ if __name__ == '__main__':
     for i,elem in enumerate(ener):
         try:
             if elem<thresh_val and (a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b or ener[i-1]>thresh_val or ener[i+1]>thresh_val or ener[i-dimX]>thresh_val or ener[i+dimX]>thresh_val):
-                tmp_point = [a_fes[i],b_fes[i]]
-                outline.append(tmp_point)
+                outline.append([a_fes[i],b_fes[i]])
         except:
             pass
         
