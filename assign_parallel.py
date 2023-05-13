@@ -9,12 +9,9 @@ import multiprocessing as mp
 import tqdm 
 
 default_args=['','','']
-args=sys.argv[3:]
+args=sys.argv[1:]
 args += default_args[len(args) :]
-
-T = args[0]
-thresh = args[1]
-frozen_atom_number = args[2]
+T, thresh, frozen_atom_number = args
 
 def init_worker(sorted_coords,a,b,lines,atom_count,head,barargs):
     tqdm.tqdm.set_lock(barargs)
