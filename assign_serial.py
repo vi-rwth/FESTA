@@ -7,10 +7,10 @@ import shapely.geometry
 import copy
 import tqdm
 
-default_args=['','','']
+default_args=['','']
 args=sys.argv[1:]
 args += default_args[len(args) :]
-T, thresh, frozen_atom_number = args
+T, thresh = args
 
 def index_search(values, l):
     indices = []
@@ -103,8 +103,7 @@ for groups in grouped_points:
     polygons.append(shapely.geometry.Polygon(groups))
     
 print(str(len(polygons)) + ' minima identified')
-print('determining minima frames:')
-for polygon in tqdm.tqdm(polygons):
+for polygon in tqdm.tqdm(polygons, desc='determining minima frames', leave=False):
     ab, coords = [], []
     for point in all_points:
         if polygon.distance(point) <= tolerance:
@@ -181,7 +180,7 @@ for i,elem in enumerate(sorted_coords):
                         elif len(" ".join(lines[k].split()).split(' ')[4]) > 8:
                             tmp_str = " ".join(lines[k].split()).split(' ')[4].split('-')
                             atom_coords = [float(" ".join(lines[k].split()).split(' ')[3]),float(tmp_str[0]),float(tmp_str[1])*(-1)]
-                    if o == 0 and tmp_count == frozen_atom_number:
+                    if o == 0 and tmp_count == 0:
                         ref_point = atom_coords
                     if not o == 0 and tmp_count == 0:
                         shift_vect = (np.array(ref_point) - np.array(atom_coords))
