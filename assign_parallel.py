@@ -8,10 +8,10 @@ import copy
 import multiprocessing as mp
 import tqdm 
 
-default_args=['','','']
+default_args=['','']
 args=sys.argv[1:]
 args += default_args[len(args) :]
-T, thresh, frozen_atom_number = args
+T, thresh = args
 
 def init_worker(sorted_coords,a,b,lines,atom_count,head,barargs):
     tqdm.tqdm.set_lock(barargs)
@@ -107,7 +107,7 @@ def sort(i):
                         elif len(" ".join(Glines[k].split()).split(' ')[4]) > 8:
                             tmp_str = " ".join(Glines[k].split()).split(' ')[4].split('-')
                             atom_coords = [float(" ".join(Glines[k].split()).split(' ')[3]),float(tmp_str[0]),float(tmp_str[1])*(-1)]
-                    if o == 0 and tmp_count == frozen_atom_number:
+                    if o == 0 and tmp_count == 0:
                         ref_point = atom_coords
                     if not o == 0 and tmp_count == 0:
                         shift_vect = (np.array(ref_point) - np.array(atom_coords))
@@ -173,8 +173,7 @@ if __name__ == '__main__':
     for groups in grouped_points:
         polygons.append(shapely.geometry.Polygon(groups))
     print(str(len(polygons)) + ' minima identified')
-    print('determining minima frames:')
-    for polygon in tqdm.tqdm(polygons):
+    for polygon in tqdm.tqdm(polygons, desc='determining minima frames', leave=False):
         ab, coords = [], []
         for point in all_points:
             if polygon.distance(point) <= tolerance:
