@@ -12,8 +12,8 @@ The MD-output directory has to include a PDB-file and a COLVAR-file. If multiple
 
 ### Input parameters
 
-Input parameters: {MD-output directory} {threshold/auto} {frozen atom number}.<br>
-All input parameters have to be specified.
+Input parameters: {MD-output directory} {threshold/"auto"}.<br>
+All input parameters must be specified.
 
 The threshold-values correspond to the free energy specified in the FES-file. If "auto" is chosen, the lowest 2/7 of the total free energy span are considered as the energy of the minima.
 
@@ -21,13 +21,13 @@ The threshold-values correspond to the free energy specified in the FES-file. If
 
 The minimum frames will be printed in (for each distinctive minimum) separate PDB-files inside the MD-output directory in a "minima" directory.<br>
 Average a and b for each minimum will be printed in the TITLE line inside the PDB-files.<br>
-Frozen atom specified in input will be used to fix this atom in the minimum PDB-file, avoiding jumps between frames.<br>
+Structure will be fixed in the minimum PDB-file relative to the first atom, avoiding jumps between frames.<br>
 Periodic boundary conditions will be neglected.<br>
 Only x,y,z, atom-type and atom-number columns will be copied from the trajectory PDB-file to the minimum PDB-file. Other columns will be filled with zeros.
 
 ### Usage advice
 
 It is advised to use FES-histograms with sufficient bins, since the tolerance of the minimum frame identification and mapping of minima
-depend on the bin quantity.
-The multiprocessing version might show significant use of memory. In case this behavior is problematic for the used machine it is advised to use the
-serial script.
+depend on the bin quantity.<br>
+The multiprocessing version shows significant use of memory (5 mio printed out trajectory lines exceed 16 GB). In case this behavior is problematic for the used machine it is advised to use the serial script or upgrade the memory of the machine.<br>
+The scripts were tested on Windows and Linux. The output may lack certain visuals if used on Windows.
