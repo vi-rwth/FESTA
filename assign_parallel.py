@@ -74,7 +74,7 @@ def group_numbers(numbers, max_diff):
 def sort(i):
     tempfile = open('min_' + str(i) + '.pdb', 'w')
     tempfile.writelines('TITLE     <a> = ' + str(round(np.mean(Gsorted_coords[i], axis=0)[0],4)) + ', <b> = ' + str(round(np.mean(Gsorted_coords[i], axis=0)[1],4)) + '\n')
-    tot_lines, ref_point = [], [0,0,0]
+    ref_point = [0,0,0]
     pos = mp.current_process()._identity[0]-1
     with tqdm.tqdm(total=len(Gsorted_coords[i]), desc='min ' + str(i) + ': ' + str(len(Gsorted_coords[i])) + ' frames', position=pos, leave=False) as progress_bar:
         for o in range(len(Gsorted_coords[i])):
@@ -118,11 +118,9 @@ def sort(i):
                     print_out.append(Glines[k])
                 elif Glines[k].startswith('CRYST1'):
                     print_out.append(Glines[k])                
-            print_out.append('END\n')           
-            tot_lines.append(print_out)
-            progress_bar.update(1)
-    for q in range(len(tot_lines)):
-        tempfile.writelines(tot_lines[q])
+            print_out.append('END\n')
+            tempfile.writelines(print_out)
+            progress_bar.update(1)        
     tempfile.close()
     
 if __name__ == '__main__':
