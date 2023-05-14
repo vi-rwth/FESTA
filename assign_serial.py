@@ -148,7 +148,7 @@ start3 = time.perf_counter()
 for i,elem in enumerate(sorted_coords):
     tempfile = open('min_' + str(i) + '.pdb', 'w')
     tempfile.writelines('TITLE     <a> = ' + str(round(np.mean(elem, axis=0)[0],4)) + ', <b> = ' + str(round(np.mean(elem, axis=0)[1],4)) + '\n')
-    tot_lines, ref_point = [], [0,0,0]
+    ref_point = [0,0,0]
     with tqdm.tqdm(total=len(elem), desc='min ' + str(i) + ': ' + str(len(elem)) + ' frames', leave=True) as progress_bar:
         for o in range(len(elem)):
             indx_a = index_search(sorted_coords[i][o][0],a)
@@ -192,10 +192,8 @@ for i,elem in enumerate(sorted_coords):
                 elif lines[k].startswith('CRYST1'):
                     print_out.append(lines[k])                
             print_out.append('END\n')
-            tot_lines.append(print_out)
-            progress_bar.update(1)
-    for q in range(len(tot_lines)):
-        tempfile.writelines(tot_lines[q])
+            tempfile.writelines(print_out)
+            progress_bar.update(1)        
     tempfile.close()
 print('time needed for postprocessing step: ' + str(round(time.perf_counter() - start3,3)) + ' s')
     
