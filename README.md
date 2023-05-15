@@ -21,7 +21,7 @@ The threshold-values correspond to the free energy specified in the FES-file. If
 ### Created PDB-files
 
 The minimum frames will be printed in (for each distinctive minimum) separate PDB-files inside the MD-output directory in a "minima" directory.<br>
-Average a and b for each minimum will be printed in the TITLE line inside the PDB-files.<br>
+Average CV1 and CV2 for each minimum will be printed in the TITLE line inside the PDB-files.<br>
 Structure will be fixed in the minimum PDB-file relative to the first atom, avoiding jumps between frames.<br>
 Periodic boundary conditions will be neglected.<br>
 Only x,y,z, atom-type and atom-number columns will be copied from the trajectory PDB-file to the minimum PDB-file. Other columns will be filled with zeros.
@@ -30,5 +30,5 @@ Only x,y,z, atom-type and atom-number columns will be copied from the trajectory
 
 It is advised to use FES-histograms with sufficient bins, since the tolerance of the minimum frame identification and mapping of minima
 depend on the bin quantity.<br>
-The multiprocessing version shows significant use of memory (5 mio printed out trajectory lines exceed 16 GB). In case this behavior is problematic for the used machine it is advised to use the serial script or upgrade the memory of the machine.<br>
+The multiprocessing version shows significant use of memory (5 million printed out trajectory lines exceed 16 GB). In case this behavior is problematic for the used machine it is advised to use the serial script or upgrade the memory of the machine.<br>
 The scripts were tested on Windows and Linux. The output may lack certain visuals if used on Windows.
