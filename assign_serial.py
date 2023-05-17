@@ -72,10 +72,11 @@ if thresh == 'auto':
     thresh_val = abs(min(ener)) - (abs(min(ener))-abs(max(ener)))/3.5
     if min(ener) < 0:
         thresh_val = thresh_val * (-1)
-    print('automaticly determined threshold value: ' + str(thresh_val))
+    print('automaticly determined', end =' ')
 else:
     thresh_val = int(thresh)
-    
+print('threshold value: ' + str(thresh_val))    
+
 while b_fes[next(count1)] == b_fes[0]:
     dimX += 1
 low_max_a, high_max_a, low_max_b, high_max_b = a_fes[0], a_fes[dimX-1], b_fes[0], b_fes[-1]
