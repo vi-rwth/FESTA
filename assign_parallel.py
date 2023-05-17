@@ -141,9 +141,10 @@ if __name__ == '__main__':
         thresh_val = abs(min(ener)) - (abs(min(ener))-abs(max(ener)))/3.5
         if min(ener) < 0:
             thresh_val = thresh_val * (-1)
-        print('automaticly determined threshold value: ' + str(thresh_val))
+        print('automaticly determined', end =' ') 
     else:
         thresh_val = int(thresh)
+    print('threshold value: ' + str(thresh_val))
         
     while b_fes[next(count1)] == b_fes[0]:
         dimX += 1
