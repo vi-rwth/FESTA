@@ -220,7 +220,7 @@ if __name__ == '__main__':
         usable_cpu = len(sorted_coords)
         
     start3 = time.perf_counter()
-    pool = mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_coords,a,b,lines,atom_count,head,mp.RLock(),), maxtasksperchild=1000)
+    pool = mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_coords,a,b,lines,atom_count,head,mp.RLock(),))
     out = pool.map(sort, range(len(sorted_coords)))
     pool.close()
     pool.join()
