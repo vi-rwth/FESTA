@@ -141,7 +141,7 @@ if __name__ == '__main__':
         thresh_val = abs(min(ener)) - (abs(min(ener))-abs(max(ener)))/3.5
         if min(ener) < 0:
             thresh_val = thresh_val * (-1)
-        print('automaticly determined', end =' ') 
+        print('automatically determined', end =' ') 
     else:
         thresh_val = int(thresh)
     print('threshold value: ' + str(thresh_val))
