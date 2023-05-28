@@ -73,7 +73,7 @@ def group_numbers(numbers, max_diff):
 
 def sort(i):
     tempfile = open('min_' + str(i) + '.pdb', 'w')
-    tempfile.writelines('TITLE     <a> = ' + str(round(np.mean(Gsorted_coords[i], axis=0)[0],4)) + ', <b> = ' + str(round(np.mean(Gsorted_coords[i], axis=0)[1],4)) + '\n')
+    tempfile.writelines('TITLE     <CV1> = ' + str(round(np.mean(Gsorted_coords[i], axis=0)[0],4)) + ', <CV2> = ' + str(round(np.mean(Gsorted_coords[i], axis=0)[1],4)) + '\n')
     ref_point = [0,0,0]
     pos = mp.current_process()._identity[0]-1
     with tqdm.tqdm(total=len(Gsorted_coords[i]), desc='min ' + str(i) + ': ' + str(len(Gsorted_coords[i])) + ' frames', position=pos, leave=False) as progress_bar:
