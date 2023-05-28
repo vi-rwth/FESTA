@@ -148,7 +148,7 @@ os.chdir('minima')
 start3 = time.perf_counter()
 for i,elem in enumerate(sorted_coords):
     tempfile = open('min_' + str(i) + '.pdb', 'w')
-    tempfile.writelines('TITLE     <a> = ' + str(round(np.mean(elem, axis=0)[0],4)) + ', <b> = ' + str(round(np.mean(elem, axis=0)[1],4)) + '\n')
+    tempfile.writelines('TITLE     <CV1> = ' + str(round(np.mean(elem, axis=0)[0],4)) + ', <CV2> = ' + str(round(np.mean(elem, axis=0)[1],4)) + '\n')
     ref_point = [0,0,0]
     with tqdm.tqdm(total=len(elem), desc='min ' + str(i) + ': ' + str(len(elem)) + ' frames', leave=True) as progress_bar:
         for o in range(len(elem)):
