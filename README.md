@@ -8,7 +8,7 @@ The scripts use numpy, os, sys, time, itertools, shapely, copy, multiprocessing 
 
 The script has to be started in the parent directory of the MD-output directory.<br>
 The parent directory has to include a FES-file named fes_{MD-output directory}_{other}.dat. The FES-file has to include the CV1, CV2 and ENERGY in the first three columns.<br>
-The MD-output directory has to include a PDB-file and a COLVAR-file. If multiple PDB-files are present, the largest one will be used. The COLVAR-file has to be named COLVAR. Only one COLVAR-file is expected. The COLVAR-file has to includd the STEPS, CV1 and CV2 in the first three columns.<br>
+The MD-output directory has to include a PDB-file and a COLVAR-file. If multiple PDB-files are present, the largest one will be used. The COLVAR-file has to be named COLVAR. Only one COLVAR-file is expected. The COLVAR-file has to include the STEPS, CV1 and CV2 in the first three columns.<br>
 The COLVAR and PDB-file must have a similar MD-step length.
 
 ### Input parameters
