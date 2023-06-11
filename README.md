@@ -30,5 +30,5 @@ Only x,y,z, atom-type and atom-number columns will be copied from the trajectory
 
 It is advised to use FES-histograms with sufficient bins, since the tolerance of the minimum frame identification and mapping of minima
 depend on the bin quantity.<br>
-The multiprocessing version shows significant use of memory (5 million printed out trajectory lines exceed 16 GB). In case this behavior is problematic for the used machine it is advised to use the serial script or upgrade the memory of the machine.<br>
+The multiprocessing version shows significant use of memory. In case this behavior is problematic for the used machine it is advised to use the serial script or upgrade the memory of the machine.<br>
 The scripts were tested on Windows and Linux. The output may lack certain visuals if used on Windows.
