@@ -73,9 +73,10 @@ if thresh == 'auto':
     thresh_val = abs(min(ener)) - (abs(min(ener))-abs(max(ener)))/3.5
     if min(ener) < 0:
         thresh_val = thresh_val * (-1)
-    print('automaticly determined threshold value: ' + str(thresh_val))
+    print('automaticly determined', end =' ') 
 else:
     thresh_val = int(thresh)
+print('threshold value: ' + str(thresh_val))
     
 b_count = b_fes[0]
 for elem in b_fes:
@@ -147,10 +148,8 @@ if traj.endswith('.pdb'):
             head += 1
 elif traj.endswith(('.config','.history','.mmtf','.data','.lammpsdump','.xyz','.txyz','.arc','.gsd','.ent','.pdbqt', '.pqr', '.gro', '.dms', '.crd')):
     u = mda.Universe(traj, in_memory=True)
-    indx_list = []
 else:
     u = mda.Universe(topo, traj, in_memory=True)
-    indx_list = []
 os.chdir('minima')
 
 for i in range(dimY):
@@ -179,6 +178,8 @@ for i,elem in enumerate(sorted_coords):
         tempfile = open('min_' + str(i) + '.pdb', 'w')
         tempfile.writelines('TITLE     <a> = ' + str(round(np.mean(elem, axis=0)[0],4)) + ', <b> = ' + str(round(np.mean(elem, axis=0)[1],4)) + '\n')
         ref_point = [0,0,0]
+    else:
+        indx_list = []
     with tqdm.tqdm(total=len(elem), desc='min ' + str(i) + ': ' + str(len(elem)) + ' frames', leave=True) as progress_bar:
         for o in range(len(elem)):
             indx_a = index_search(sorted_coords[i][o][0],a)
