@@ -11,8 +11,8 @@ The MD-output directory has to include a FES-file, a trajectory-file and a COLVA
 The COLVAR and trajectory-file must have a similar MD-step length.
 
 All trajectory-formats supported by MDAnalysis are supported here as well. For a complete liste see:<br>
-https://docs.mdanalysis.org/stable/documentation_pages/coordinates/init.html#id2
-If the trajectory-file does not offer topological information, a separate topology-file has to be provided
+https://docs.mdanalysis.org/stable/documentation_pages/coordinates/init.html#id2<br>
+If the trajectory-file does not offer topological information, a separate topology-file has to be provided.
 
 ### Input parameters
 
@@ -25,7 +25,7 @@ The threshold-values correspond to the free energy specified in the FES-file. If
 The minimum frames will be printed in (for each distinctive minimum) separate trajectory-files inside the MD-output directory in a "minima" directory. The format will be chosen based on the trajectory-file format.<br>
 ONLY PDB: Average CV1 and CV2 for each minimum will be printed in the TITLE line inside the trajectory-files.<br>
 ONLY PDB: Structure will be fixed in the minimum trajectory-file relative to the first atom, avoiding jumps between frames.<br>
-ONLY PDB: Only x,y,z, atom-type and atom-number columns will be copied from the trajectory PDB-file to the minimum PDB-file. Other columns will be filled with zeros.
+ONLY PDB: Only x,y,z, atom-type and atom-number columns will be copied from the trajectory PDB-file to the minimum PDB-file. Other columns will be filled with zeros.<br>
 Periodic boundary conditions will be neglected.<br>
 
 ### Usage advice
