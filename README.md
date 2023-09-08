@@ -10,7 +10,7 @@ The script has to be started in the parent directory of the MD-output directory.
 The MD-output directory has to include a FES-file, a trajectory-file and a COLVAR-file. The COLVAR-file has to be named COLVAR and the FES-file must be named "fes.dat". The FES-file has to include the CV1, CV2 and ENERGY in the first three columns. The COLVAR-file has to include the STEPS, CV1 and CV2 in the first three columns. Only one COLVAR-file is expected.<br>
 The COLVAR and trajectory-file must have a similar MD-step length.
 
-All trajectory-formats supported by MDAnalysis are supported here as well. For a complete liste see:<br>
+All trajectory-formats supported by MDAnalysis are supported here as well. For a complete list see:<br>
 https://docs.mdanalysis.org/stable/documentation_pages/coordinates/init.html#id2 <br>
 If the trajectory-file does not offer topological information, a separate topology-file has to be provided.
 
