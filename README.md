@@ -11,7 +11,7 @@ The MD-output directory has to include a FES-file, a trajectory-file and a COLVA
 The COLVAR and trajectory-file must have a similar MD-step length.
 
 All trajectory-formats supported by MDAnalysis are supported here as well. For a complete liste see:<br>
-https://docs.mdanalysis.org/stable/documentation_pages/coordinates/init.html#id2<br>
+https://docs.mdanalysis.org/stable/documentation_pages/coordinates/init.html#id2 <br>
 If the trajectory-file does not offer topological information, a separate topology-file has to be provided.
 
 ### Input parameters
