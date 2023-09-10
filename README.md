@@ -10,9 +10,12 @@ The script has to be started in the parent directory of the MD-output directory.
 The MD-output directory has to include a FES-file, a trajectory-file and a COLVAR-file. The COLVAR-file has to be named COLVAR and the FES-file must be named "fes.dat". The FES-file has to include the CV1, CV2 and ENERGY in the first three columns. The COLVAR-file has to include the STEPS, CV1 and CV2 in the first three columns. Only one COLVAR-file is expected.<br>
 The COLVAR and trajectory-file must have a similar MD-step length.
 
+ONLY SERIAL VERSION:
 All trajectory-formats supported by MDAnalysis are supported here as well. For a complete list see:<br>
 https://docs.mdanalysis.org/stable/documentation_pages/coordinates/init.html#id2 <br>
 If the trajectory-file does not offer topological information, a separate topology-file has to be provided.
+
+PARALLEL VERSION ONLY SUPPORTS PDB-TRAJECTORY FILES SO FAR
 
 ### Input parameters
 
@@ -20,9 +23,9 @@ Input parameters: {MD-output directory} {threshold/"auto"} {trajectory-file} OPT
 
 The threshold-values correspond to the free energy specified in the FES-file. If "auto" is chosen, the lowest 2/7 of the total free energy span are considered as the energy of the minima.
 
-### Created trajectory-files
+### Created files
 
-The minimum frames will be printed in (for each distinctive minimum) separate trajectory-files inside the MD-output directory in a "minima" directory. The format will be chosen based on the trajectory-file format.<br>
+The minimum frames will be printed in (for each distinctive minimum) separate trajectory-files inside the MD-output directory in a "minima" directory. The format will be chosen based on the trajectory-file format. The minima directory contains a FES-visualization PNG-file with a white outline showing the minima-areas.<br>
 ONLY PDB: Average CV1 and CV2 for each minimum will be printed in the TITLE line inside the trajectory-files.<br>
 ONLY PDB: Structure will be fixed in the minimum trajectory-file relative to the first atom, avoiding jumps between frames.<br>
 ONLY PDB: Only x,y,z, atom-type and atom-number columns will be copied from the trajectory PDB-file to the minimum PDB-file. Other columns will be filled with zeros.<br>
