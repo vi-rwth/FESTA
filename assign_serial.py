@@ -9,7 +9,10 @@ import tqdm
 import MDAnalysis as mda
 import matplotlib.pyplot as plt
 from matplotlib import ticker
-
+import warnings
+warnings.filterwarnings('ignore')
+import operator as op
+ 
 try:
   topo = sys.argv[4]
 except IndexError:
@@ -22,6 +25,13 @@ def index_search(values, l):
         if values == x:
             indices.append(i)
     return indices
+
+def have_common_elem(l1, l2):
+    for elem in l2:
+        if op.countOf(l1, elem) > 0:
+            return True
+            break
+    return False
 
 def group_numbers(numbers, max_diff):
     separate_groups, subgroup = [], []
@@ -73,7 +83,7 @@ if thresh == 'auto':
     thresh_val = abs(min(ener)) - (abs(min(ener))-abs(max(ener)))/3.5
     if min(ener) < 0:
         thresh_val = thresh_val * (-1)
-    print('automaticly determined', end =' ') 
+    print('automatically determined', end =' ') 
 else:
     thresh_val = int(thresh)
 print('threshold value: ' + str(thresh_val))
@@ -87,15 +97,17 @@ while b_fes[next(count1)] == b_fes[0]:
     dimX += 1
     
 low_max_a, high_max_a, low_max_b, high_max_b = a_fes[0], a_fes[dimX-1], b_fes[0], b_fes[-1]
-outline_show_a, outline_show_b = [], []
+outline_show_a, outline_show_b, edge = [], [], []
 
 for i,elem in enumerate(ener):
     try:
         if elem<thresh_val and (a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b or ener[i-1]>thresh_val or ener[i+1]>thresh_val or ener[i-dimX]>thresh_val or ener[i+dimX]>thresh_val):
+            if a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b:
+                edge.append([a_fes[i],b_fes[i]])
             outline.append([a_fes[i],b_fes[i]])
-            outline_show_a.append(a_fes[i]*dimX+dimX/2)
-            outline_show_b.append(b_fes[i]*(-dimY)+dimY/2)
-    except:
+            outline_show_a.append((a_fes[i]+abs(low_max_a))*(dimX/(abs(low_max_a)+abs(high_max_a))))
+            outline_show_b.append(abs(b_fes[i]-abs(high_max_b))*(dimY/(abs(low_max_b)+abs(high_max_b))))
+    except IndexError:
         pass
 
 tolerance = abs(a_fes[0]-a_fes[1])/2    
@@ -108,6 +120,22 @@ all_points, sorted_coords = [], []
 for i, elem in enumerate(a):
     all_points.append(shapely.geometry.Point(elem,b[i]))
 grouped_points = group_numbers(outline, 20*np.sqrt(8)*tolerance)
+#if edge:
+#    print('periodicity detected: boundaries will be considered periodic')
+#    pbc = []
+#    grouped_edges = group_numbers(edge, 20*np.sqrt(8)*tolerance)
+#    for i in range(len(grouped_edges)-1):
+#        if (abs(grouped_edges[i][0][0])-abs(grouped_edges[i+1][0][0]))**2 + (abs(grouped_edges[i][0][0])-abs(grouped_edges[i+1][1][0]))**2 < 0.01:
+#            pbc_group = []
+#            for j, groups in enumerate(grouped_points):
+#                if have_common_elem(grouped_edges[i],groups) or have_common_elem(grouped_edges[i+1],groups):
+#                    pbc_group.append(j)
+#                if len(pbc_group) == 2:
+#                    pbc.append(pbc_group)
+#                if len(pbc)*2 == len(grouped_edges):
+#                    break
+#    print(pbc)
+#quit()
 polygons = []
 for groups in grouped_points:
     polygons.append(shapely.geometry.Polygon(groups))
@@ -134,23 +162,27 @@ if not os.path.isdir('minima'):
 
 start3 = time.perf_counter()
 
-if traj.endswith('.pdb'):
-    f = open(traj, 'r+')
-    lines = f.readlines()
-    f.close()
-    atom_count, head = 0, 0
-    for line in lines:
-        if line.startswith('ATOM'):
-            atom_count += 1
-        elif line.startswith('END'):
-            break
-        elif line.startswith('AUTHOR') or line.startswith('TITLE'):
-            head += 1
-elif traj.endswith(('.config','.history','.mmtf','.data','.lammpsdump','.xyz','.txyz','.arc','.gsd','.ent','.pdbqt', '.pqr', '.gro', '.dms', '.crd')):
-    u = mda.Universe(traj, in_memory=True)
+if topo == None:
+    if traj.endswith('.pdb'):
+        f = open(traj, 'r+')
+        lines = f.readlines()
+        f.close()
+        atom_count, head = 0, 0
+        for line in lines:
+            if line.startswith('ATOM'):
+                atom_count += 1
+            elif line.startswith('END'):
+                break
+            elif line.startswith('AUTHOR') or line.startswith('TITLE'):
+                head += 1
+    else:
+        u = mda.Universe(traj, in_memory=True)
 else:
     u = mda.Universe(topo, traj, in_memory=True)
+    
 os.chdir('minima')
+with open('min_overview.txt', 'w') as overviewfile:
+    pass
 
 for i in range(dimY):
     bins.append(np.zeros(dimX))
@@ -160,8 +192,8 @@ for i in range(dimY):
 
 plt.figure(figsize=(8,6), dpi=100)
 plt.imshow(bins, interpolation='gaussian', cmap='nipy_spectral')
-plt.xticks(np.linspace(low_max_a,dimX-np.round(high_max_a,1),5),np.round(np.linspace(low_max_a,high_max_a, num=5),2))
-plt.yticks(np.linspace(low_max_b,dimY-np.round(high_max_b,1),5),np.round(np.linspace(high_max_b,low_max_b, num=5),2))
+plt.xticks(np.linspace(-0.5,dimX-0.5,5),np.round(np.linspace(low_max_a,high_max_a, num=5),2))
+plt.yticks(np.linspace(-0.5,dimY-0.5,5),np.round(np.linspace(high_max_b,low_max_b, num=5),2))
 plt.xlabel('CV1 [a.U.]')
 plt.ylabel('CV2 [a.U.]')
 plt.axis('tight')
@@ -174,13 +206,17 @@ cb.update_ticks()
 plt.savefig('fes_visual.png',bbox_inches='tight')
 
 for i,elem in enumerate(sorted_coords):
+    with open('min_overview.txt', 'a') as overviewfile:
+        try:
+            overviewfile.writelines('min_' + str(i) + ': <CV1> = ' + str(round(np.mean(sorted_coords[i], axis=0)[0],4)) + ', <CV2> = ' + str(round(np.mean(sorted_coords[i], axis=0)[1],4)) + '\n')
+        except IndexError:
+            overviewfile.writelines('min_' + str(i) + ': No minima-frames found for this minimum\n')
     if traj.endswith('.pdb'):
         tempfile = open('min_' + str(i) + '.pdb', 'w')
-        tempfile.writelines('TITLE     <a> = ' + str(round(np.mean(elem, axis=0)[0],4)) + ', <b> = ' + str(round(np.mean(elem, axis=0)[1],4)) + '\n')
         ref_point = [0,0,0]
     else:
         indx_list = []
-    with tqdm.tqdm(total=len(elem), desc='min ' + str(i) + ': ' + str(len(elem)) + ' frames', leave=True) as progress_bar:
+    with tqdm.tqdm(total=len(elem), desc='min ' + str(i) + ': ' + str(len(elem)) + ' frames', leave=False) as progress_bar:
         for o in range(len(elem)):
             indx_a = index_search(sorted_coords[i][o][0],a)
             indx_b = index_search(sorted_coords[i][o][1],b)
@@ -232,5 +268,12 @@ for i,elem in enumerate(sorted_coords):
         tempfile.close()
     else:
         ag =u.select_atoms('all')
-        ag.write('min_' + str(i) + '.' + traj.split('.')[1], frames=u.trajectory[indx_list])
+        try:
+            ag.write('min_' + str(i) + '.' + traj.split('.')[1], frames=u.trajectory[indx_list])
+        except IndexError:
+            raise Exception('Multiple frames are not supported with this trajectory-format.')
+        except Exception:
+            print('MDAnalysis does not support writing of ' + traj.split('.')[1] + ' files, writing in xyz')
+            ag.write('min_' + str(i) + '.xyz', frames=u.trajectory[indx_list])
+            
 print('time needed for postprocessing step: ' + str(round(time.perf_counter() - start3,3)) + ' s')
