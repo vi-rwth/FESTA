@@ -10,6 +10,8 @@ import multiprocessing as mp
 import MDAnalysis as mda
 import matplotlib.pyplot as plt
 from matplotlib import ticker
+import warnings
+warnings.filterwarnings('ignore')
 
 try:
   topo = sys.argv[4]
@@ -80,9 +82,13 @@ def group_numbers(numbers, max_diff):
     return separate_groups
 
 def sort(i):
+    with open('min_overview.txt', 'a') as overviewfile:
+        try:
+            overviewfile.writelines('min_' + str(i) + ': <CV1> = ' + str(round(np.mean(sorted_coords[i], axis=0)[0],4)) + ', <CV2> = ' + str(round(np.mean(sorted_coords[i], axis=0)[1],4)) + '\n')
+        except IndexError:
+            overviewfile.writelines('min_' + str(i) + ': No minima-frames found for this minimum\n')
     if traj.endswith('.pdb'):
         tempfile = open('min_' + str(i) + '.pdb', 'w')
-        tempfile.writelines('TITLE     <a> = ' + str(round(np.mean(Gsorted_coords[i], axis=0)[0],4)) + ', <b> = ' + str(round(np.mean(Gsorted_coords[i], axis=0)[1],4)) + '\n')
         ref_point = [0,0,0]
     else:
         indx_list = []
@@ -137,7 +143,13 @@ def sort(i):
     if traj.endswith('.pdb'):        
         tempfile.close()
     else:
-        Gag.write('min_' + str(i) + '.' + traj.split('.')[1], frames=Gu.trajectory[indx_list])
+        try:
+            Gag.write('min_' + str(i) + '.' + traj.split('.')[1], frames=Gu.trajectory[indx_list])
+        except IndexError:
+            raise Exception('Multiple frames are not supported with this trajectory-format.')
+        except Exception:
+            print('MDAnalysis does not support writing of ' + traj.split('.')[1] + ' files, writing in xyz')
+            Gag.write('min_' + str(i) + '.xyz', frames=Gu.trajectory[indx_list])
     
 if __name__ == '__main__':
     print('working on directory: ' + T)
@@ -154,7 +166,7 @@ if __name__ == '__main__':
         thresh_val = abs(min(ener)) - (abs(min(ener))-abs(max(ener)))/3.5
         if min(ener) < 0:
             thresh_val = thresh_val * (-1)
-        print('automaticly determined', end =' ') 
+        print('automatically determined', end =' ') 
     else:
         thresh_val = int(thresh)
     print('threshold value: ' + str(thresh_val))
@@ -173,9 +185,9 @@ if __name__ == '__main__':
         try:
             if elem<thresh_val and (a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b or ener[i-1]>thresh_val or ener[i+1]>thresh_val or ener[i-dimX]>thresh_val or ener[i+dimX]>thresh_val):
                 outline.append([a_fes[i],b_fes[i]])
-                outline_show_a.append(a_fes[i]*dimX+dimX/2)
-                outline_show_b.append(b_fes[i]*(-dimY)+dimY/2)
-        except:
+                outline_show_a.append((a_fes[i]+abs(low_max_a))*(dimX/(abs(low_max_a)+abs(high_max_a))))
+                outline_show_b.append(abs(b_fes[i]-abs(high_max_b))*(dimY/(abs(low_max_b)+abs(high_max_b))))
+        except IndexError:
             pass
         
     tolerance = abs(a_fes[0]-a_fes[1])/2     
@@ -212,26 +224,29 @@ if __name__ == '__main__':
     if not os.path.isdir('minima'):
         os.mkdir('minima')
             
-    if traj.endswith('.pdb'):
-        f = open(traj, 'r+')
-        lines = f.readlines()
-        f.close()
-        atom_count, head = 0, 0
-        for line in lines:
-            if line.startswith('ATOM'):
-                atom_count += 1
-            elif line.startswith('END'):
-                break
-            elif line.startswith('AUTHOR') or line.startswith('TITLE'):
-                head += 1
-    elif traj.endswith(('.config','.history','.mmtf','.data','.lammpsdump','.xyz','.txyz','.arc','.gsd','.ent','.pdbqt', '.pqr', '.gro', '.dms', '.crd')):
-        u = mda.Universe(traj, in_memory =True)
-        ag =u.select_atoms('all')
+    if topo == None:
+        if traj.endswith('.pdb'):
+            f = open(traj, 'r+')
+            lines = f.readlines()
+            f.close()
+            atom_count, head = 0, 0
+            for line in lines:
+                if line.startswith('ATOM'):
+                    atom_count += 1
+                elif line.startswith('END'):
+                    break
+                elif line.startswith('AUTHOR') or line.startswith('TITLE'):
+                    head += 1
+        else:
+            u = mda.Universe(traj, in_memory=True)
+            ag =u.select_atoms('all')
     else:
-        u = mda.Universe(topo, traj, in_memory =True)
+        u = mda.Universe(topo, traj, in_memory=True)
         ag =u.select_atoms('all')
             
     os.chdir('minima')
+    with open('min_overview.txt', 'w') as overviewfile:
+        pass
     
     for i in range(dimY):
         bins.append(np.zeros(dimX))
