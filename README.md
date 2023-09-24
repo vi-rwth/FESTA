@@ -4,7 +4,7 @@
 
 The metadynamics run has to be 3-dimensional (exactly 2 collective variables (CVs) + energy). 
 
-The scripts use numpy, os, sys, time, itertools, shapely, copy, multiprocessing, MDAnalysis, matplotlib and tqdm modules. These have to be installed before running the scripts.
+The scripts use numpy, os, sys, time, itertools, shapely, copy, multiprocessing, MDAnalysis, matplotlib, operator and tqdm modules. These have to be installed before running the scripts.
 
 The script has to be started in the parent directory of the MD-output directory.<br>
 The MD-output directory has to include a FES-file, a trajectory-file and a COLVAR-file. The COLVAR-file has to be named COLVAR and the FES-file must be named "fes.dat". The FES-file has to include the CV1, CV2 and ENERGY in the first three columns. The COLVAR-file has to include the STEPS, CV1 and CV2 in the first three columns. Only one COLVAR-file is expected.<br>
@@ -12,7 +12,7 @@ The COLVAR and trajectory-file must have a similar MD-step length.
 
 Most trajectory-formats supported by MDAnalysis are supported here as well. For a complete list see:<br>
 https://docs.mdanalysis.org/stable/documentation_pages/coordinates/init.html#id2 <br>
-Trajectory-formats must have multiframe capabilities. Not supported formats are: PDBQT, PQR, MMTF, NAMDBIN, IN, FHAIMS, COOR, CRD.<br>
+Trajectory-formats must have multiframe capabilities. Not supported formats are: PDBQT, PQR, MMTF, NAMDBIN, IN, FHAIMS, COOR, CRD, GRO.<br>
 If the trajectory-file does not offer topological information, a separate topology-file has to be provided.
 
 ### Input parameters
@@ -27,7 +27,7 @@ The minimum frames will be printed in (for each distinctive minimum) separate tr
 Average CV1 and CV2 for each minimum will be printed in a separate "min_overview.txt"-file inside the "minima" directory.<br>
 ONLY PDB: Structure will be fixed in the minimum trajectory-file relative to the first atom, avoiding jumps between frames.<br>
 ONLY PDB: Only x,y,z, atom-type and atom-number columns will be copied from the trajectory PDB-file to the minimum PDB-file. Other columns will be filled with zeros.<br>
-Periodic boundary conditions will be neglected.<br>
+Periodicity will be detected and considered automatically.<br>
 
 ### Usage advice
 
