@@ -10,6 +10,7 @@ import multiprocessing as mp
 import MDAnalysis as mda
 import matplotlib.pyplot as plt
 from matplotlib import ticker
+import operator as op
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -45,6 +46,13 @@ def index_search(values, l):
             indices.append(i)
     return indices
 
+def have_common_elem(l1, l2):
+    for elem in l2:
+        if op.countOf(l1, elem) > 0:
+            return True
+            break
+    return False
+
 def group_numbers(numbers, max_diff):
     separate_groups, subgroup = [], []
     tmplist = copy.deepcopy(numbers)
@@ -52,15 +60,18 @@ def group_numbers(numbers, max_diff):
     while any(tmplist):  
         min_distance = max_diff
         found = False
-        tmplist.remove(seed_elem)
+        try:
+            tmplist.remove(seed_elem)
+        except ValueError:
+            pass
         for compare_elem in tmplist: 
-            if ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5< min_distance: 
+            if ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5 < min_distance: 
                 found = True
                 min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
                 min_elem = compare_elem
         if found == True and any(subgroup):
             subgroup.append(seed_elem)
-            seed_elem = min_elem                 
+            seed_elem = min_elem                   
         else:
             if any(subgroup):  
                 separate_groups.append(subgroup)
@@ -69,7 +80,7 @@ def group_numbers(numbers, max_diff):
             min_distance = max_diff
             for group in separate_groups:
                 for elem in group:
-                    if ((seed_elem[0]-elem[0])**2 + (seed_elem[1]-elem[1])**2)**0.5< min_distance:
+                    if  ((seed_elem[0]-elem[0])**2 + (seed_elem[1]-elem[1])**2)**0.5 < min_distance:
                         group.append(seed_elem)
                         sec_run = True
                         break
@@ -77,16 +88,16 @@ def group_numbers(numbers, max_diff):
                     break
             if sec_run == False:
                 subgroup.append(seed_elem)
-            if any(tmplist):
+            elif any(tmplist):
                 seed_elem = tmplist[0]
     return separate_groups
 
 def sort(i):
     with open('min_overview.txt', 'a') as overviewfile:
-        try:
-            overviewfile.writelines('min_' + str(i) + ': <CV1> = ' + str(round(np.mean(sorted_coords[i], axis=0)[0],4)) + ', <CV2> = ' + str(round(np.mean(sorted_coords[i], axis=0)[1],4)) + '\n')
-        except IndexError:
-            overviewfile.writelines('min_' + str(i) + ': No minima-frames found for this minimum\n')
+        if periodicity == True:
+            overviewfile.writelines('min_' + str(i) + ': ' + desc[i] + '\n')
+        else:
+            overviewfile.writelines('min_' + str(i) + ': CV1: ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' CV2: ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
     if traj.endswith('.pdb'):
         tempfile = open('min_' + str(i) + '.pdb', 'w')
         ref_point = [0,0,0]
@@ -179,11 +190,13 @@ if __name__ == '__main__':
     while b_fes[next(count1)] == b_fes[0]:
         dimX += 1
     low_max_a, high_max_a, low_max_b, high_max_b = a_fes[0], a_fes[dimX-1], b_fes[0], b_fes[-1]
-    outline_show_a, outline_show_b = [], []
+    outline_show_a, outline_show_b, edge = [], [], []
     
     for i,elem in enumerate(ener):
         try:
             if elem<thresh_val and (a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b or ener[i-1]>thresh_val or ener[i+1]>thresh_val or ener[i-dimX]>thresh_val or ener[i+dimX]>thresh_val):
+                if a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b:
+                    edge.append([a_fes[i],b_fes[i]])
                 outline.append([a_fes[i],b_fes[i]])
                 outline_show_a.append((a_fes[i]+abs(low_max_a))*(dimX/(abs(low_max_a)+abs(high_max_a))))
                 outline_show_b.append(abs(b_fes[i]-abs(high_max_b))*(dimY/(abs(low_max_b)+abs(high_max_b))))
@@ -203,7 +216,44 @@ if __name__ == '__main__':
     polygons = []
     for groups in grouped_points:
         polygons.append(shapely.geometry.Polygon(groups))
-    print(str(len(polygons)) + ' minima identified')
+    
+    if edge:
+        edge_points, pbc = [], []
+        grouped_edges = group_numbers(edge, 10*np.sqrt(8)*tolerance)
+        for i,group1 in enumerate(grouped_edges):
+            if sum(list(map(len, pbc))) >= len(grouped_edges):
+                break
+            expect_group, tmp_lst = [], []
+            for elem in group1:
+                tmp_pt = copy.deepcopy(elem)
+                if elem[0] == high_max_a:
+                    tmp_pt[0] = low_max_a
+                elif elem[0] == low_max_a:
+                    tmp_pt[0] = high_max_a
+                if elem[1] == high_max_b:
+                    tmp_pt[1] = low_max_b
+                elif elem[1] == low_max_b:
+                    tmp_pt[1] = high_max_b
+                expect_group.append(tmp_pt)
+            found_periodic = False
+            for j,group2 in enumerate(grouped_points):
+                if have_common_elem(group2, expect_group) or have_common_elem(group2, group1):
+                    periodicity = True
+                    found_periodic = True
+                    tmp_lst.append(j)
+            if found_periodic == True:
+                if len(tmp_lst) == 1:
+                    periodicity = False
+                    break
+                elif i == 0:
+                    print('periodicity detected: boundaries will be considered periodic')
+                pbc.append(tmp_lst)
+    print(str(len(polygons)), end = ' ')
+    if periodicity == True:
+        print('distinctive areas identified')
+    else:
+        print('minima identified')
+
     for polygon in tqdm.tqdm(polygons, desc='determining minima frames', leave=False):
         ab, coords = [], []
         for point in all_points:
@@ -220,6 +270,22 @@ if __name__ == '__main__':
     print('processed ' + str(len(a)) + ' frames')
     print('found ' + str(tot_min_frames) + ' minima frames')
     print('time needed for minima frames identification step: ' + str(round(time.perf_counter() - start1,3)) + ' s')
+
+    if periodicity == True:
+        sorted_coords_period, tot_pbc, desc = [], [], []
+        for elem in pbc:
+            desc.append(' + '.join(('CV1: ' + str(round(np.mean(grouped_points[j], axis=0)[0],4)) + ' CV2: ' + str(round(np.mean(grouped_points[j], axis=0)[1],4))) for j in elem))
+            help_list = []
+            for i in elem:
+                tot_pbc.append(i)
+                help_list += sorted_coords[i]
+            sorted_coords_period.append(help_list)
+        for i,elem in enumerate(sorted_coords):
+            if not i in tot_pbc:
+                desc.append('CV1: ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' CV2: ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)))
+                sorted_coords_period.append(elem)
+        sorted_coords = sorted_coords_period
+        print(str(len(sorted_coords)) + ' minima identified')
 
     if not os.path.isdir('minima'):
         os.mkdir('minima')
