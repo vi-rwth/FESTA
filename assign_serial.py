@@ -10,6 +10,7 @@ import MDAnalysis as mda
 import matplotlib.pyplot as plt
 from matplotlib import ticker
 import operator as op
+import shutil
 import warnings
 warnings.filterwarnings('ignore')
  
@@ -42,6 +43,7 @@ def group_numbers(numbers, max_diff):
         found = False
         try:
             tmplist.remove(seed_elem)
+            new_group_found = False
         except ValueError:
             pass
         for compare_elem in tmplist: 
@@ -50,8 +52,9 @@ def group_numbers(numbers, max_diff):
                 min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
                 min_elem = compare_elem
         if found == True and any(subgroup):
-            subgroup.append(seed_elem)
-            seed_elem = min_elem                   
+            if new_group_found == False:
+                subgroup.append(seed_elem)
+            seed_elem = min_elem   
         else:
             if any(subgroup):  
                 separate_groups.append(subgroup)
@@ -68,16 +71,17 @@ def group_numbers(numbers, max_diff):
                     break
             if sec_run == False:
                 subgroup.append(seed_elem)
+                new_group_found = True
             elif any(tmplist):
                 seed_elem = tmplist[0]
     return separate_groups
 
-def sort_pdb_cp2k(i, ref_point):
+def sort_pdb_cp2k(o,indx, ref_point):
     min_coords, shift_vect, print_out = [], [0,0,0], []
     count = it.count(0)
     for k in range(head+(indx*(atom_count+3)), head+((indx+1)*(atom_count+3))):
         if lines[k].startswith('ATOM'):
-            tmp_count = next(count)
+            atom_counter = next(count)
             print_lines = []
             str_part_1 = lines[k].split('                 ')[0]
             str_part_2 = lines[k].split('0.00  0.00')[1]
@@ -98,12 +102,12 @@ def sort_pdb_cp2k(i, ref_point):
                 elif len(" ".join(lines[k].split()).split(' ')[4]) > 8:
                     tmp_str = " ".join(lines[k].split()).split(' ')[4].split('-')
                     atom_coords = [float(" ".join(lines[k].split()).split(' ')[3]),float(tmp_str[0]),float(tmp_str[1])*(-1)]
-            if o == 0 and tmp_count == 0:
+            if o == 0 and atom_counter == 0:
                 ref_point = atom_coords
-            if not o == 0 and tmp_count == 0:
+            if not o == 0 and atom_counter == 0:
                 shift_vect = (np.array(ref_point) - np.array(atom_coords))
             min_coords.append((np.array(atom_coords) + np.array(shift_vect)).tolist())
-            print_lines = ''.join((str_part_1,' '*(25-len(str(round(min_coords[tmp_count][0],3)))),str(round(min_coords[tmp_count][0],3)),' '*(8-len(str(round(min_coords[tmp_count][1],3)))),str(round(min_coords[tmp_count][1],3)),' '*(8-len(str(round(min_coords[tmp_count][2],3)))),str(round(min_coords[tmp_count][2],3)),'  0.00  0.00',str_part_2))  
+            print_lines = ''.join((str_part_1,' '*(25-len(str(round(min_coords[atom_counter][0],3)))),str(round(min_coords[atom_counter][0],3)),' '*(8-len(str(round(min_coords[atom_counter][1],3)))),str(round(min_coords[atom_counter][1],3)),' '*(8-len(str(round(min_coords[atom_counter][2],3)))),str(round(min_coords[atom_counter][2],3)),'  0.00  0.00',str_part_2))  
             print_out.append(print_lines)
         elif lines[k].startswith('REMARK'):
             print_out.append(lines[k])
@@ -111,6 +115,7 @@ def sort_pdb_cp2k(i, ref_point):
             print_out.append(lines[k])                
     print_out.append('END\n')
     tempfile.writelines(print_out)
+    return ref_point
 
 def sort_pdb_cp2k_prework():
     f = open(traj, 'r+')
@@ -142,7 +147,7 @@ if thresh == 'auto':
         thresh_val = thresh_val * (-1)
     print('automatically determined', end =' ') 
 else:
-    thresh_val = int(thresh)
+    thresh_val = float(thresh)
 print('threshold value: ' + str(thresh_val))
     
 b_count = b_fes[0]
@@ -251,7 +256,10 @@ if periodicity == True:
     sorted_coords = sorted_coords_period
     print(str(len(sorted_coords)) + ' minima identified')
 
-if not os.path.isdir('minima'):
+try:
+    os.mkdir('minima')
+except FileExistsError:
+    shutil.rmtree('minima')
     os.mkdir('minima')
 
 start3 = time.perf_counter()
@@ -263,7 +271,14 @@ try:
         u = mda.Universe(topo, traj, in_memory=True)
     ag =u.select_atoms('all')
 except IndexError:
-    head, atom_count, lines = sort_pdb_cp2k_prework()
+    if traj.endswith('.pdb'):
+        head, atom_count, lines = sort_pdb_cp2k_prework()
+    else:
+        raise Exception('MDAnalysis does not support the topology- or trajectory-file.')
+except FileNotFoundError:
+    raise
+except Exception:
+    raise Exception('MDAnalysis does not support the topology- or trajectory-file.')
     
 os.chdir('minima')
 with open('min_overview.txt', 'w') as overviewfile:
@@ -311,8 +326,8 @@ for i,elem in enumerate(sorted_coords):
         if traj.endswith('.pdb'):
             tempfile = open('min_' + str(i) + '.pdb', 'w')
             ref_point = [0,0,0]
-            for o in indx_list:
-                sort_pdb_cp2k(o, ref_point)
+            for o,elem_inner in enumerate(indx_list):
+                ref_point = sort_pdb_cp2k(o,elem_inner, ref_point)
             tempfile.close()
         else:
             raise Exception('Multiple frames are not supported with this trajectory-format.')
