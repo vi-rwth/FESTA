@@ -224,7 +224,7 @@ if __name__ == '__main__':
     tolerance = abs(a_fes[0]-a_fes[1])/2     
     data_colvar = np.genfromtxt('COLVAR')
     data_colvar_T = np.transpose(data_colvar)
-    step, d1,d2,d3,a, b = data_colvar_T[0].copy(), data_colvar_T[1].copy(), data_colvar_T[2].copy(), data_colvar_T[3].copy(), data_colvar_T[4].copy(), data_colvar_T[5].copy()
+    step, a, b = data_colvar_T[0].copy(), data_colvar_T[1].copy(), data_colvar_T[2].copy()
 
     start1 = time.perf_counter()
     all_points, sorted_coords = [], []
