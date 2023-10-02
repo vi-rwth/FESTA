@@ -11,6 +11,7 @@ import MDAnalysis as mda
 import matplotlib.pyplot as plt
 from matplotlib import ticker
 import operator as op
+import shutil
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -20,7 +21,7 @@ except IndexError:
   topo = None
 T, thresh, traj = sys.argv[1:]
 
-def init_worker_pdb(sorted_coords,a,b,lines,atom_count,head,barargs):
+def init_worker_pdb(sorted_coords,a,b,lines,atom_count,head,desc,barargs):
     tqdm.tqdm.set_lock(barargs)
     global Gsorted_coords
     global Ga
@@ -28,16 +29,18 @@ def init_worker_pdb(sorted_coords,a,b,lines,atom_count,head,barargs):
     global Gatom_count
     global Ghead
     global Glines
-    Gatom_count, Ghead, Glines, Gsorted_coords, Ga, Gb = atom_count, head, lines, sorted_coords, a, b
+    global Gdesc
+    Gatom_count, Ghead, Glines, Gsorted_coords, Ga, Gb, Gdesc = atom_count, head, lines, sorted_coords, a, b, desc
 
-def init_worker(sorted_coords,a,b,u,ag,barargs):
+def init_worker(sorted_coords,a,b,u,ag,desc,barargs):
     tqdm.tqdm.set_lock(barargs)
     global Gsorted_coords
     global Ga
     global Gb 
     global Gu
     global Gag
-    Gsorted_coords, Ga, Gb, Gu, Gag = sorted_coords, a, b, u, ag
+    global Gdesc
+    Gsorted_coords, Ga, Gb, Gu, Gag, Gdesc = sorted_coords, a, b, u, ag, desc
 
 def index_search(values, l):
     indices = []
@@ -62,6 +65,7 @@ def group_numbers(numbers, max_diff):
         found = False
         try:
             tmplist.remove(seed_elem)
+            new_group_found = False
         except ValueError:
             pass
         for compare_elem in tmplist: 
@@ -70,8 +74,9 @@ def group_numbers(numbers, max_diff):
                 min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
                 min_elem = compare_elem
         if found == True and any(subgroup):
-            subgroup.append(seed_elem)
-            seed_elem = min_elem                   
+            if new_group_found == False:
+                subgroup.append(seed_elem)
+            seed_elem = min_elem   
         else:
             if any(subgroup):  
                 separate_groups.append(subgroup)
@@ -88,21 +93,18 @@ def group_numbers(numbers, max_diff):
                     break
             if sec_run == False:
                 subgroup.append(seed_elem)
+                new_group_found = True
             elif any(tmplist):
                 seed_elem = tmplist[0]
     return separate_groups
 
 def sort(i):
+    indx_list = []
     with open('min_overview.txt', 'a') as overviewfile:
-        if periodicity == True:
-            overviewfile.writelines('min_' + str(i) + ': ' + desc[i] + '\n')
+        if Gdesc:
+            overviewfile.writelines('min_' + str(i) + ': ' + Gdesc[i] + '\n')
         else:
             overviewfile.writelines('min_' + str(i) + ': CV1: ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' CV2: ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
-    if traj.endswith('.pdb'):
-        tempfile = open('min_' + str(i) + '.pdb', 'w')
-        ref_point = [0,0,0]
-    else:
-        indx_list = []
     pos = mp.current_process()._identity[0]-1
     with tqdm.tqdm(total=len(Gsorted_coords[i]), desc='min ' + str(i) + ': ' + str(len(Gsorted_coords[i])) + ' frames', position=pos, leave=False) as progress_bar:
         for o in range(len(Gsorted_coords[i])):
@@ -111,10 +113,17 @@ def sort(i):
             both = set(indx_a).intersection(indx_b)
             indx = both.pop()
             indx_list.append(indx)
-            if traj.endswith('.pdb'):
+            progress_bar.update(1)
+    try:
+        Gag.write('min_' + str(i) + '.' + traj.split('.')[1], frames=Gu.trajectory[indx_list])
+    except (IndexError, NameError):
+        if traj.endswith('.pdb'):
+            tempfile = open('min_' + str(i) + '.pdb', 'w')
+            ref_point = [0,0,0]
+            for o,elem_inner in enumerate(indx_list):
                 min_coords, shift_vect, print_out = [], [0,0,0], []
                 count = it.count(0)
-                for k in range(Ghead+(indx*(Gatom_count+3)), Ghead+((indx+1)*(Gatom_count+3))):
+                for k in range(Ghead+(elem_inner*(Gatom_count+3)), Ghead+((elem_inner+1)*(Gatom_count+3))):
                     if Glines[k].startswith('ATOM'):
                         tmp_count = next(count)
                         print_lines = []
@@ -149,19 +158,28 @@ def sort(i):
                     elif Glines[k].startswith('CRYST1'):
                         print_out.append(Glines[k])                
                 print_out.append('END\n')           
-                tempfile.writelines(print_out)                
-            progress_bar.update(1)
-    if traj.endswith('.pdb'):        
-        tempfile.close()
-    else:
-        try:
-            Gag.write('min_' + str(i) + '.' + traj.split('.')[1], frames=Gu.trajectory[indx_list])
-        except IndexError:
+                tempfile.writelines(print_out) 
+            tempfile.close()
+        else:
             raise Exception('Multiple frames are not supported with this trajectory-format.')
-        except Exception:
-            print('MDAnalysis does not support writing of ' + traj.split('.')[1] + ' files, writing in xyz')
-            Gag.write('min_' + str(i) + '.xyz', frames=Gu.trajectory[indx_list])
-    
+    except (TypeError, ValueError):
+        print('MDAnalysis does not support writing in ' + traj.split('.')[1] + '-format, writing in xyz-format instead')
+        Gag.write('min_' + str(i) + '.xyz', frames=Gu.trajectory[indx_list])
+
+def sort_pdb_cp2k_prework():
+    f = open(traj, 'r+')
+    lines = f.readlines()
+    f.close()
+    atom_count, head = 0, 0
+    for line in lines:
+        if line.startswith('ATOM'):
+            atom_count += 1
+        elif line.startswith('END'):
+            break
+        elif line.startswith('AUTHOR') or line.startswith('TITLE'):
+            head += 1
+    return head, atom_count, lines
+
 if __name__ == '__main__':
     print('working on directory: ' + T)
     outline, bins, coords = [], [], []
@@ -179,7 +197,7 @@ if __name__ == '__main__':
             thresh_val = thresh_val * (-1)
         print('automatically determined', end =' ') 
     else:
-        thresh_val = int(thresh)
+        thresh_val = float(thresh)
     print('threshold value: ' + str(thresh_val))
         
     b_count = b_fes[0]
@@ -206,7 +224,7 @@ if __name__ == '__main__':
     tolerance = abs(a_fes[0]-a_fes[1])/2     
     data_colvar = np.genfromtxt('COLVAR')
     data_colvar_T = np.transpose(data_colvar)
-    step, a, b = data_colvar_T[0].copy(), data_colvar_T[1].copy(), data_colvar_T[2].copy()
+    step, d1,d2,d3,a, b = data_colvar_T[0].copy(), data_colvar_T[1].copy(), data_colvar_T[2].copy(), data_colvar_T[3].copy(), data_colvar_T[4].copy(), data_colvar_T[5].copy()
 
     start1 = time.perf_counter()
     all_points, sorted_coords = [], []
@@ -216,7 +234,8 @@ if __name__ == '__main__':
     polygons = []
     for groups in grouped_points:
         polygons.append(shapely.geometry.Polygon(groups))
-    
+        
+    periodicity = False
     if edge:
         edge_points, pbc = [], []
         grouped_edges = group_numbers(edge, 10*np.sqrt(8)*tolerance)
@@ -243,7 +262,6 @@ if __name__ == '__main__':
                     tmp_lst.append(j)
             if found_periodic == True:
                 if len(tmp_lst) == 1:
-                    periodicity = False
                     break
                 elif i == 0:
                     print('periodicity detected: boundaries will be considered periodic')
@@ -270,9 +288,10 @@ if __name__ == '__main__':
     print('processed ' + str(len(a)) + ' frames')
     print('found ' + str(tot_min_frames) + ' minima frames')
     print('time needed for minima frames identification step: ' + str(round(time.perf_counter() - start1,3)) + ' s')
-
+    
+    desc = []
     if periodicity == True:
-        sorted_coords_period, tot_pbc, desc = [], [], []
+        sorted_coords_period, tot_pbc  = [], []
         for elem in pbc:
             desc.append(' + '.join(('CV1: ' + str(round(np.mean(grouped_points[j], axis=0)[0],4)) + ' CV2: ' + str(round(np.mean(grouped_points[j], axis=0)[1],4))) for j in elem))
             help_list = []
@@ -287,33 +306,28 @@ if __name__ == '__main__':
         sorted_coords = sorted_coords_period
         print(str(len(sorted_coords)) + ' minima identified')
 
-    if not os.path.isdir('minima'):
+    try:
         os.mkdir('minima')
-            
-    if topo == None:
-        if traj.endswith('.pdb'):
-            f = open(traj, 'r+')
-            lines = f.readlines()
-            f.close()
-            atom_count, head = 0, 0
-            for line in lines:
-                if line.startswith('ATOM'):
-                    atom_count += 1
-                elif line.startswith('END'):
-                    break
-                elif line.startswith('AUTHOR') or line.startswith('TITLE'):
-                    head += 1
-        else:
+    except FileExistsError:
+        shutil.rmtree('minima')
+        os.mkdir('minima')
+
+    try:
+        if topo == None:
             u = mda.Universe(traj, in_memory=True)
-            ag =u.select_atoms('all')
-    else:
-        u = mda.Universe(topo, traj, in_memory=True)
+        else:
+            u = mda.Universe(topo, traj, in_memory=True)
         ag =u.select_atoms('all')
-            
-    os.chdir('minima')
-    with open('min_overview.txt', 'w') as overviewfile:
-        pass
-    
+    except IndexError:
+        if traj.endswith('.pdb'):
+            head, atom_count, lines = sort_pdb_cp2k_prework()
+        else:
+            raise Exception('MDAnalysis does not support the topology- or trajectory-file.')
+    except FileNotFoundError:
+        raise
+    except Exception:
+        raise Exception('MDAnalysis does not support the topology- or trajectory-file.')
+        
     for i in range(dimY):
         bins.append(np.zeros(dimX))
     for i in range(dimY):
@@ -339,12 +353,12 @@ if __name__ == '__main__':
         usable_cpu = os.cpu_count()-1
     else:
         usable_cpu = len(sorted_coords)
-        
+    
     start3 = time.perf_counter()
-    if traj.endswith('.pdb'):
-        pool = mp.Pool(processes = usable_cpu, initializer=init_worker_pdb, initargs=(sorted_coords,a,b,lines,atom_count,head,mp.RLock(),))
-    else:
-        pool = mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_coords,a,b,u,ag,mp.RLock(),))
+    try:
+        pool = mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_coords,a,b,u,ag,desc,mp.RLock(),)) 
+    except NameError:
+        pool = mp.Pool(processes = usable_cpu, initializer=init_worker_pdb, initargs=(sorted_coords,a,b,lines,atom_count,head,desc,mp.RLock(),))
     out = pool.map(sort, range(len(sorted_coords)))
     pool.close()
     pool.join()
