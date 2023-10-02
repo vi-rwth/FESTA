@@ -4,7 +4,7 @@
 
 The metadynamics run has to be 3-dimensional (exactly 2 collective variables (CVs) + energy). 
 
-The scripts use numpy, os, sys, time, itertools, shapely, copy, multiprocessing, MDAnalysis, matplotlib, operator and tqdm modules. These have to be installed before running the scripts.
+The scripts use numpy, os, sys, shutil, time, itertools, shapely, copy, multiprocessing, MDAnalysis, matplotlib, operator and tqdm modules. These have to be installed before running the scripts.
 
 The script has to be started in the parent directory of the MD-output directory.<br>
 The MD-output directory has to include a FES-file, a trajectory-file and a COLVAR-file. The COLVAR-file has to be named COLVAR and the FES-file must be named "fes.dat". The FES-file has to include the CV1, CV2 and ENERGY in the first three columns. The COLVAR-file has to include the STEPS, CV1 and CV2 in the first three columns. Only one COLVAR-file is expected.<br>
