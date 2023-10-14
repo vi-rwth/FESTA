@@ -21,7 +21,7 @@ except IndexError:
   topo = None
 T, thresh, traj = sys.argv[1:]
 
-def init_worker_pdb(sorted_coords,a,b,lines,atom_count,head,desc,barargs):
+def init_worker_pdb(sorted_coords,a,b,lines,atom_count,head,desc,num_areas,barargs):
     tqdm.tqdm.set_lock(barargs)
     global Gsorted_coords
     global Ga
@@ -30,9 +30,10 @@ def init_worker_pdb(sorted_coords,a,b,lines,atom_count,head,desc,barargs):
     global Ghead
     global Glines
     global Gdesc
-    Gatom_count, Ghead, Glines, Gsorted_coords, Ga, Gb, Gdesc = atom_count, head, lines, sorted_coords, a, b, desc
+    global Gnum_areas
+    Gatom_count, Ghead, Glines, Gsorted_coords, Ga, Gb, Gdesc, Gnum_areas = atom_count, head, lines, sorted_coords, a, b, desc, num_areas
 
-def init_worker(sorted_coords,a,b,u,ag,desc,barargs):
+def init_worker(sorted_coords,a,b,u,ag,desc,num_areas,barargs):
     tqdm.tqdm.set_lock(barargs)
     global Gsorted_coords
     global Ga
@@ -40,14 +41,30 @@ def init_worker(sorted_coords,a,b,u,ag,desc,barargs):
     global Gu
     global Gag
     global Gdesc
-    Gsorted_coords, Ga, Gb, Gu, Gag, Gdesc = sorted_coords, a, b, u, ag, desc
-
-def index_search(values, l):
-    indices = []
-    for i, x in enumerate(l):
-        if values == x:
-            indices.append(i)
-    return indices
+    global Gnum_areas
+    Gsorted_coords, Ga, Gb, Gu, Gag, Gdesc, Gnum_areas = sorted_coords, a, b, u, ag, desc, num_areas
+    
+def init_polygon(all_points,tolerance,mp_sorted_coords, barargs):
+    tqdm.tqdm.set_lock(barargs)
+    global Gall_points
+    global Gtolerance
+    global managed_list
+    Gall_points, Gtolerance, managed_list = all_points, tolerance, mp_sorted_coords
+    
+def det_min_frames(j):
+    ab, coords = [], []
+    pos1 = mp.current_process()._identity[0]-2
+    with tqdm.tqdm(total=len(all_points), desc='min ' + str(j), position=pos1, leave=False) as pbar:
+        for point in Gall_points:
+            if polygons[j].distance(point) <= Gtolerance:
+                ab.append(True)
+            else:
+                ab.append(False)
+            pbar.update(1)
+    for i,elem2 in enumerate(ab):
+        if elem2 == True:
+            coords.append([a[i],b[i]])
+    managed_list.append(coords)
 
 def have_common_elem(l1, l2):
     for elem in l2:
@@ -60,42 +77,44 @@ def group_numbers(numbers, max_diff):
     separate_groups, subgroup = [], []
     tmplist = copy.deepcopy(numbers)
     seed_elem = tmplist[0]
-    while any(tmplist):  
-        min_distance = max_diff
-        found = False
-        try:
-            tmplist.remove(seed_elem)
-            new_group_found = False
-        except ValueError:
-            pass
-        for compare_elem in tmplist: 
-            if ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5 < min_distance: 
-                found = True
-                min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
-                min_elem = compare_elem
-        if found == True and any(subgroup):
-            if new_group_found == False:
-                subgroup.append(seed_elem)
-            seed_elem = min_elem   
-        else:
-            if any(subgroup):  
-                separate_groups.append(subgroup)
-            subgroup = []
-            sec_run = False
+    with tqdm.tqdm(total=len(tmplist), desc='grouping outline', leave=False) as pbar:
+        while any(tmplist):  
             min_distance = max_diff
-            for group in separate_groups:
-                for elem in group:
-                    if  ((seed_elem[0]-elem[0])**2 + (seed_elem[1]-elem[1])**2)**0.5 < min_distance:
-                        group.append(seed_elem)
-                        sec_run = True
+            found = False
+            try:
+                tmplist.remove(seed_elem)
+                new_group_found = False
+            except ValueError:
+                pass
+            for compare_elem in tmplist: 
+                if ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5 < min_distance: 
+                    found = True
+                    min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
+                    min_elem = compare_elem
+            if found == True and any(subgroup):
+                if new_group_found == False:
+                    subgroup.append(seed_elem)
+                seed_elem = min_elem   
+            else:
+                if any(subgroup):  
+                    separate_groups.append(subgroup)
+                subgroup = []
+                sec_run = False
+                min_distance = max_diff
+                for group in separate_groups:
+                    for elem in group:
+                        if  ((seed_elem[0]-elem[0])**2 + (seed_elem[1]-elem[1])**2)**0.5 < min_distance:
+                            group.append(seed_elem)
+                            sec_run = True
+                            break
+                    if sec_run == True:
                         break
-                if sec_run == True:
-                    break
-            if sec_run == False:
-                subgroup.append(seed_elem)
-                new_group_found = True
-            elif any(tmplist):
-                seed_elem = tmplist[0]
+                if sec_run == False:
+                    subgroup.append(seed_elem)
+                    new_group_found = True
+                elif any(tmplist):
+                    seed_elem = tmplist[0]
+            pbar.update(1)
     return separate_groups
 
 def sort(i):
@@ -105,11 +124,11 @@ def sort(i):
             overviewfile.writelines('min_' + str(i) + ': ' + Gdesc[i] + '\n')
         else:
             overviewfile.writelines('min_' + str(i) + ': CV1: ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' CV2: ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
-    pos = mp.current_process()._identity[0]-1
+    pos = mp.current_process()._identity[0]-2-Gnum_areas
     with tqdm.tqdm(total=len(Gsorted_coords[i]), desc='min ' + str(i) + ': ' + str(len(Gsorted_coords[i])) + ' frames', position=pos, leave=False) as progress_bar:
         for o in range(len(Gsorted_coords[i])):
-            indx_a = index_search(Gsorted_coords[i][o][0],Ga)
-            indx_b = index_search(Gsorted_coords[i][o][1],Gb)
+            indx_a = np.where(a==sorted_coords[i][o][0])[0]
+            indx_b = np.where(b==sorted_coords[i][o][1])[0]
             both = set(indx_a).intersection(indx_b)
             indx = both.pop()
             indx_list.append(indx)
@@ -187,9 +206,23 @@ if __name__ == '__main__':
     thresh_val, tot_min_frames, dimX, dimY = 0, 0, 0, 1
     os.chdir(T)
 
+    with open('COLVAR', 'r') as colvar_file:
+        col_var = colvar_file.readline()
+    with open('fes.dat', 'r') as fes_file:
+        fes_var = fes_file.readline()
+    pos_ener = fes_var.split(' ').index('file.free')-2
+    cvs = list(set(col_var.split(' ')).intersection(fes_var.split(' ')))
+    pos_cvs_fes, pos_cvs_col = [], []
+    for elem in cvs:
+        if not elem == '#!' and not elem == 'FIELDS':
+            pos_cvs_fes.append(fes_var.split(' ').index(elem)-2)
+            pos_cvs_col.append(col_var.split(' ').index(elem)-2)
+    pos_cvs_fes.sort()
+    pos_cvs_col.sort()
+
     data_fes = np.genfromtxt('fes.dat')
     data_fes_T = np.transpose(data_fes)
-    a_fes, b_fes, ener = data_fes_T[0].copy(), data_fes_T[1].copy(), data_fes_T[2].copy()
+    a_fes, b_fes, ener = data_fes_T[pos_cvs_fes[0]].copy(), data_fes_T[pos_cvs_fes[1]].copy(), data_fes_T[pos_ener].copy()
 
     if thresh == 'auto':
         thresh_val = abs(min(ener)) - (abs(min(ener))-abs(max(ener)))/3.5
@@ -210,9 +243,9 @@ if __name__ == '__main__':
     low_max_a, high_max_a, low_max_b, high_max_b = a_fes[0], a_fes[dimX-1], b_fes[0], b_fes[-1]
     outline_show_a, outline_show_b, edge = [], [], []
     
-    for i,elem in enumerate(ener):
+    for i in tqdm.tqdm(range(len(ener)),desc='collecting outline', leave=False):
         try:
-            if elem<thresh_val and (a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b or ener[i-1]>thresh_val or ener[i+1]>thresh_val or ener[i-dimX]>thresh_val or ener[i+dimX]>thresh_val):
+            if ener[i]<thresh_val and (a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b or ener[i-1]>thresh_val or ener[i+1]>thresh_val or ener[i-dimX]>thresh_val or ener[i+dimX]>thresh_val):
                 if a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b:
                     edge.append([a_fes[i],b_fes[i]])
                 outline.append([a_fes[i],b_fes[i]])
@@ -224,10 +257,10 @@ if __name__ == '__main__':
     tolerance = abs(a_fes[0]-a_fes[1])/2     
     data_colvar = np.genfromtxt('COLVAR')
     data_colvar_T = np.transpose(data_colvar)
-    step, a, b = data_colvar_T[0].copy(), data_colvar_T[1].copy(), data_colvar_T[2].copy()
+    a, b = data_colvar_T[pos_cvs_col[0]].copy(), data_colvar_T[pos_cvs_col[1]].copy()
 
     start1 = time.perf_counter()
-    all_points, sorted_coords = [], []
+    all_points = []
     for i, elem in enumerate(a):
         all_points.append(shapely.geometry.Point(elem,b[i]))
     grouped_points = group_numbers(outline, 20*np.sqrt(8)*tolerance)
@@ -271,21 +304,20 @@ if __name__ == '__main__':
         print('distinctive areas identified')
     else:
         print('minima identified')
-
-    for polygon in tqdm.tqdm(polygons, desc='determining minima frames', leave=False):
-        ab, coords = [], []
-        for point in all_points:
-            if polygon.distance(point) <= tolerance:
-                ab.append(True)
-            else:
-                ab.append(False)
-        for i,elem2 in enumerate(ab):
-            if elem2 == True:
-                coords.append([a[i],b[i]])
-        tot_min_frames += len(coords)
-        sorted_coords.append(coords)
-
-    print('processed ' + str(len(a)) + ' frames')
+    
+    tot_min_frames =0
+    if len(polygons) > os.cpu_count()-1:
+        usable_cpu = os.cpu_count()-1
+    else:
+        usable_cpu = len(polygons)
+    manager = mp.Manager()
+    mp_sorted_coords = manager.list()
+    with mp.Pool(processes=usable_cpu, initializer=init_polygon, initargs=(all_points, tolerance, mp_sorted_coords, mp.RLock(),)) as pool:
+        pool.map(det_min_frames, range(len(polygons)))
+    sorted_coords = list(mp_sorted_coords)
+    for lists in sorted_coords:
+        tot_min_frames += len(lists)
+    print(' processed ' + str(len(a)) + ' frames')
     print('found ' + str(tot_min_frames) + ' minima frames')
     print('time needed for minima frames identification step: ' + str(round(time.perf_counter() - start1,3)) + ' s')
     
@@ -327,8 +359,12 @@ if __name__ == '__main__':
         raise
     except Exception:
         raise Exception('MDAnalysis does not support the topology- or trajectory-file.')
-        
-    for i in range(dimY):
+    
+    os.chdir('minima')
+    with open('min_overview.txt', 'w') as overviewfile:
+        pass
+    
+    for _ in range(dimY):
         bins.append(np.zeros(dimX))
     for i in range(dimY):
         for l in range(dimX):
@@ -356,11 +392,11 @@ if __name__ == '__main__':
     
     start3 = time.perf_counter()
     try:
-        pool = mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_coords,a,b,u,ag,desc,mp.RLock(),)) 
+        pool = mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_coords,a,b,u,ag,desc,len(polygons),mp.RLock(),)) 
     except NameError:
-        pool = mp.Pool(processes = usable_cpu, initializer=init_worker_pdb, initargs=(sorted_coords,a,b,lines,atom_count,head,desc,mp.RLock(),))
+        pool = mp.Pool(processes = usable_cpu, initializer=init_worker_pdb, initargs=(sorted_coords,a,b,lines,atom_count,head,desc,len(polygons),mp.RLock(),))
     out = pool.map(sort, range(len(sorted_coords)))
     pool.close()
     pool.join()
 
-    print('time needed for postprocessing step: ' + str(round(time.perf_counter() - start3,3)) + ' s')
+    print(' time needed for postprocessing step: ' + str(round(time.perf_counter() - start3,3)) + ' s')
