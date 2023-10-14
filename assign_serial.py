@@ -20,13 +20,6 @@ except IndexError:
   topo = None
 T, thresh, traj = sys.argv[1:]
 
-def index_search(values, l):
-    indices = []
-    for i, x in enumerate(l):
-        if values == x:
-            indices.append(i)
-    return indices
-
 def have_common_elem(l1, l2):
     for elem in l2:
         if op.countOf(l1, elem) > 0:
@@ -38,42 +31,44 @@ def group_numbers(numbers, max_diff):
     separate_groups, subgroup = [], []
     tmplist = copy.deepcopy(numbers)
     seed_elem = tmplist[0]
-    while any(tmplist):  
-        min_distance = max_diff
-        found = False
-        try:
-            tmplist.remove(seed_elem)
-            new_group_found = False
-        except ValueError:
-            pass
-        for compare_elem in tmplist: 
-            if ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5 < min_distance: 
-                found = True
-                min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
-                min_elem = compare_elem
-        if found == True and any(subgroup):
-            if new_group_found == False:
-                subgroup.append(seed_elem)
-            seed_elem = min_elem   
-        else:
-            if any(subgroup):  
-                separate_groups.append(subgroup)
-            subgroup = []
-            sec_run = False
+    with tqdm.tqdm(total=len(tmplist), desc='grouping outline', leave=False) as pbar:
+        while any(tmplist):  
             min_distance = max_diff
-            for group in separate_groups:
-                for elem in group:
-                    if  ((seed_elem[0]-elem[0])**2 + (seed_elem[1]-elem[1])**2)**0.5 < min_distance:
-                        group.append(seed_elem)
-                        sec_run = True
+            found = False
+            try:
+                tmplist.remove(seed_elem)
+                new_group_found = False
+            except ValueError:
+                pass
+            for compare_elem in tmplist: 
+                if ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5 < min_distance: 
+                    found = True
+                    min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
+                    min_elem = compare_elem
+            if found == True and any(subgroup):
+                if new_group_found == False:
+                    subgroup.append(seed_elem)
+                seed_elem = min_elem   
+            else:
+                if any(subgroup):  
+                    separate_groups.append(subgroup)
+                subgroup = []
+                sec_run = False
+                min_distance = max_diff
+                for group in separate_groups:
+                    for elem in group:
+                        if  ((seed_elem[0]-elem[0])**2 + (seed_elem[1]-elem[1])**2)**0.5 < min_distance:
+                            group.append(seed_elem)
+                            sec_run = True
+                            break
+                    if sec_run == True:
                         break
-                if sec_run == True:
-                    break
-            if sec_run == False:
-                subgroup.append(seed_elem)
-                new_group_found = True
-            elif any(tmplist):
-                seed_elem = tmplist[0]
+                if sec_run == False:
+                    subgroup.append(seed_elem)
+                    new_group_found = True
+                elif any(tmplist):
+                    seed_elem = tmplist[0]
+            pbar.update(1)
     return separate_groups
 
 def sort_pdb_cp2k(o,indx, ref_point):
@@ -137,9 +132,23 @@ count1, count2 = it.count(0), it.count(0)
 thresh_val, tot_min_frames, dimX, dimY = 0, 0, 0, 1
 os.chdir(T)
 
+with open('COLVAR', 'r') as colvar_file:
+    col_var = colvar_file.readline()
+with open('fes.dat', 'r') as fes_file:
+    fes_var = fes_file.readline()
+pos_ener = fes_var.split(' ').index('file.free')-2
+cvs = list(set(col_var.split(' ')).intersection(fes_var.split(' ')))
+pos_cvs_fes, pos_cvs_col = [], []
+for elem in cvs:
+    if not elem == '#!' and not elem == 'FIELDS':
+        pos_cvs_fes.append(fes_var.split(' ').index(elem)-2)
+        pos_cvs_col.append(col_var.split(' ').index(elem)-2)
+pos_cvs_fes.sort()
+pos_cvs_col.sort()
+
 data_fes = np.genfromtxt('fes.dat')
 data_fes_T = np.transpose(data_fes)
-a_fes, b_fes, ener = data_fes_T[0].copy(), data_fes_T[1].copy(), data_fes_T[2].copy()
+a_fes, b_fes, ener = data_fes_T[pos_cvs_fes[0]].copy(), data_fes_T[pos_cvs_fes[1]].copy(), data_fes_T[pos_ener].copy()
 
 if thresh == 'auto':
     thresh_val = abs(min(ener)) - (abs(min(ener))-abs(max(ener)))/3.5
@@ -161,9 +170,9 @@ while b_fes[next(count1)] == b_fes[0]:
 low_max_a, high_max_a, low_max_b, high_max_b = a_fes[0], a_fes[dimX-1], b_fes[0], b_fes[-1]
 outline_show_a, outline_show_b, edge = [], [], []
 
-for i,elem in enumerate(ener):
+for i in tqdm.tqdm(range(len(ener)),desc='collecting outline', leave=False):
     try:
-        if elem<thresh_val and (a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b or ener[i-1]>thresh_val or ener[i+1]>thresh_val or ener[i-dimX]>thresh_val or ener[i+dimX]>thresh_val):
+        if ener[i]<thresh_val and (a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b or ener[i-1]>thresh_val or ener[i+1]>thresh_val or ener[i-dimX]>thresh_val or ener[i+dimX]>thresh_val):
             if a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b:
                 edge.append([a_fes[i],b_fes[i]])
             outline.append([a_fes[i],b_fes[i]])
@@ -175,7 +184,7 @@ for i,elem in enumerate(ener):
 tolerance = abs(a_fes[0]-a_fes[1])/2    
 data_colvar = np.genfromtxt('COLVAR')
 data_colvar_T = np.transpose(data_colvar)
-step, a, b = data_colvar_T[0].copy(), data_colvar_T[1].copy(), data_colvar_T[2].copy()
+a, b = data_colvar_T[pos_cvs_col[0]].copy(), data_colvar_T[pos_cvs_col[1]].copy()
 
 start1 = time.perf_counter()
 all_points, sorted_coords = [], []
@@ -314,8 +323,8 @@ for i,elem in enumerate(sorted_coords):
             overviewfile.writelines('min_' + str(i) + ': CV1: ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' CV2: ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
     with tqdm.tqdm(total=len(elem), desc='min ' + str(i) + ': ' + str(len(elem)) + ' frames', leave=False) as progress_bar:
         for o in range(len(elem)):
-            indx_a = index_search(sorted_coords[i][o][0],a)
-            indx_b = index_search(sorted_coords[i][o][1],b)
+            indx_a = np.where(a==sorted_coords[i][o][0])[0]
+            indx_b = np.where(b==sorted_coords[i][o][1])[0]
             both = set(indx_a).intersection(indx_b)
             indx = both.pop()
             indx_list.append(indx)
