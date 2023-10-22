@@ -123,7 +123,7 @@ def sort(i):
         if Gdesc:
             overviewfile.writelines('min_' + str(i) + ': ' + Gdesc[i] + '\n')
         else:
-            overviewfile.writelines('min_' + str(i) + ': CV1: ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' CV2: ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
+            overviewfile.writelines('min_' + str(i) + ': '+ fes_var.split(' ')[pos_cvs_fes[0]+2] +': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var.split(' ')[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
     pos = mp.current_process()._identity[0]-2-Gnum_areas
     with tqdm.tqdm(total=len(Gsorted_coords[i]), desc='min ' + str(i) + ': ' + str(len(Gsorted_coords[i])) + ' frames', position=pos, leave=False) as progress_bar:
         for o in range(len(Gsorted_coords[i])):
@@ -211,23 +211,24 @@ if __name__ == '__main__':
     with open('fes.dat', 'r') as fes_file:
         fes_var = fes_file.readline()
     pos_ener = fes_var.split(' ').index('file.free')-2
-    cvs = list(set(col_var.split(' ')).intersection(fes_var.split(' ')))
+    com = list(set(col_var.split(' ')).intersection(fes_var.split(' ')))
     pos_cvs_fes, pos_cvs_col = [], []
-    for elem in cvs:
+    for elem in com:
         if not elem == '#!' and not elem == 'FIELDS':
             pos_cvs_fes.append(fes_var.split(' ').index(elem)-2)
-            pos_cvs_col.append(col_var.split(' ').index(elem)-2)
+            pos_cvs_col.append(col_var.split(' ').index(elem)-2)            
     pos_cvs_fes.sort()
     pos_cvs_col.sort()
-
+    
+    if not len(pos_cvs_fes) == 2 or not len(pos_cvs_col) == 2:
+        raise Exception('Only MD-runs with 2 CVs supported')
+        
     data_fes = np.genfromtxt('fes.dat')
     data_fes_T = np.transpose(data_fes)
     a_fes, b_fes, ener = data_fes_T[pos_cvs_fes[0]].copy(), data_fes_T[pos_cvs_fes[1]].copy(), data_fes_T[pos_ener].copy()
 
     if thresh == 'auto':
-        thresh_val = abs(min(ener)) - (abs(min(ener))-abs(max(ener)))/3.5
-        if min(ener) < 0:
-            thresh_val = thresh_val * (-1)
+        thresh_val = max(ener) - abs(max(ener)-min(ener))*(1-1/12)
         print('automatically determined', end =' ') 
     else:
         thresh_val = float(thresh)
@@ -249,8 +250,8 @@ if __name__ == '__main__':
                 if a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b:
                     edge.append([a_fes[i],b_fes[i]])
                 outline.append([a_fes[i],b_fes[i]])
-                outline_show_a.append((a_fes[i]+abs(low_max_a))*(dimX/(abs(low_max_a)+abs(high_max_a))))
-                outline_show_b.append(abs(b_fes[i]-abs(high_max_b))*(dimY/(abs(low_max_b)+abs(high_max_b))))
+                outline_show_a.append(abs((a_fes[i]-low_max_a)/((high_max_a-low_max_a)/dimX)))
+                outline_show_b.append(dimY-abs((b_fes[i]-low_max_b)/((high_max_b-low_max_b)/dimY)))
         except IndexError:
             pass
         
@@ -325,7 +326,7 @@ if __name__ == '__main__':
     if periodicity == True:
         sorted_coords_period, tot_pbc  = [], []
         for elem in pbc:
-            desc.append(' + '.join(('CV1: ' + str(round(np.mean(grouped_points[j], axis=0)[0],4)) + ' CV2: ' + str(round(np.mean(grouped_points[j], axis=0)[1],4))) for j in elem))
+            desc.append(' + '.join((fes_var.split(' ')[pos_cvs_fes[0]+2] + ': ' + str(round(np.mean(grouped_points[j], axis=0)[0],4)) + ' '+fes_var.split(' ')[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[j], axis=0)[1],4))) for j in elem))
             help_list = []
             for i in elem:
                 tot_pbc.append(i)
@@ -333,7 +334,7 @@ if __name__ == '__main__':
             sorted_coords_period.append(help_list)
         for i,elem in enumerate(sorted_coords):
             if not i in tot_pbc:
-                desc.append('CV1: ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' CV2: ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)))
+                desc.append(fes_var.split(' ')[pos_cvs_fes[0]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var.split(' ')[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)))
                 sorted_coords_period.append(elem)
         sorted_coords = sorted_coords_period
         print(str(len(sorted_coords)) + ' minima identified')
@@ -374,8 +375,8 @@ if __name__ == '__main__':
     plt.imshow(bins, interpolation='gaussian', cmap='nipy_spectral')
     plt.xticks(np.linspace(low_max_a,dimX-np.round(high_max_a,1),5),np.round(np.linspace(low_max_a,high_max_a, num=5),2))
     plt.yticks(np.linspace(low_max_b,dimY-np.round(high_max_b,1),5),np.round(np.linspace(high_max_b,low_max_b, num=5),2))
-    plt.xlabel('CV1 [a.U.]')
-    plt.ylabel('CV2 [a.U.]')
+    plt.xlabel(fes_var.split(' ')[pos_cvs_fes[0]+2] + ' [a.U.]')
+    plt.ylabel(fes_var.split(' ')[pos_cvs_fes[1]+2] + ' [a.U.]')
     plt.axis('tight')
     plt.title('threshold: ' + str(round(thresh_val,3)) + ' a.U.')
     plt.plot(outline_show_a, outline_show_b, '.', color='white')
