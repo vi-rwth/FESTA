@@ -19,7 +19,7 @@ If the trajectory-file does not offer topological information, a separate topolo
 
 Input parameters: {MD-output directory} {threshold/"auto"} {trajectory-file} OPTIONAL:{topology-file}.<br>
 
-The threshold-values correspond to the free energy specified in the FES-file. If "auto" is chosen, the lowest 2/7 of the total free energy span are considered as the energy of the minima.
+The threshold-values correspond to the free energy specified in the FES-file. If "auto" is chosen, the lowest 1/12 of the total free energy span are considered as the energy of the minima.
 
 ### Created files
 
