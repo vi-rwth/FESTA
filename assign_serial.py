@@ -145,15 +145,15 @@ for elem in cvs:
         pos_cvs_col.append(col_var.split(' ').index(elem)-2)
 pos_cvs_fes.sort()
 pos_cvs_col.sort()
-
+if not len(pos_cvs_fes) == 2 or not len(pos_cvs_col) == 2:
+    raise Exception('Only MD-runs with 2 CVs supported')
+    
 data_fes = np.genfromtxt('fes.dat')
 data_fes_T = np.transpose(data_fes)
 a_fes, b_fes, ener = data_fes_T[pos_cvs_fes[0]].copy(), data_fes_T[pos_cvs_fes[1]].copy(), data_fes_T[pos_ener].copy()
 
 if thresh == 'auto':
-    thresh_val = abs(min(ener)) - (abs(min(ener))-abs(max(ener)))/3.5
-    if min(ener) < 0:
-        thresh_val = thresh_val * (-1)
+    thresh_val = max(ener) - abs(max(ener)-min(ener))*(1-1/12)
     print('automatically determined', end =' ') 
 else:
     thresh_val = float(thresh)
@@ -176,8 +176,8 @@ for i in tqdm.tqdm(range(len(ener)),desc='collecting outline', leave=False):
             if a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b:
                 edge.append([a_fes[i],b_fes[i]])
             outline.append([a_fes[i],b_fes[i]])
-            outline_show_a.append((a_fes[i]+abs(low_max_a))*(dimX/(abs(low_max_a)+abs(high_max_a))))
-            outline_show_b.append(abs(b_fes[i]-abs(high_max_b))*(dimY/(abs(low_max_b)+abs(high_max_b))))
+            outline_show_a.append(abs((a_fes[i]-low_max_a)/((high_max_a-low_max_a)/dimX)))
+            outline_show_b.append(dimY-abs((b_fes[i]-low_max_b)/((high_max_b-low_max_b)/dimY)))
     except IndexError:
         pass
 
@@ -190,15 +190,16 @@ start1 = time.perf_counter()
 all_points, sorted_coords = [], []
 for i, elem in enumerate(a):
     all_points.append(shapely.geometry.Point(elem,b[i]))
-grouped_points = group_numbers(outline, 10*np.sqrt(8)*tolerance)
+grouped_points = group_numbers(outline, 20*np.sqrt(8)*tolerance)
 
 polygons = []
 for groups in grouped_points:
     polygons.append(shapely.geometry.Polygon(groups))
-    
+
+periodicity = False    
 if edge:
     edge_points, pbc = [], []
-    grouped_edges = group_numbers(edge, 10*np.sqrt(8)*tolerance)
+    grouped_edges = group_numbers(edge, 20*np.sqrt(8)*tolerance)
     for i,group1 in enumerate(grouped_edges):
         if sum(list(map(len, pbc))) >= len(grouped_edges):
             break
@@ -249,10 +250,11 @@ print('processed ' + str(len(a)) + ' frames')
 print('found ' + str(tot_min_frames) + ' minima frames')
 print('time needed for minima frames identification step: ' + str(round(time.perf_counter() - start1,3)) + ' s')
 
+desc = []
 if periodicity == True:
-    sorted_coords_period, tot_pbc, desc = [], [], []
+    sorted_coords_period, tot_pbc  = [], []
     for elem in pbc:
-        desc.append(' + '.join(('CV1: ' + str(round(np.mean(grouped_points[j], axis=0)[0],4)) + ' CV2: ' + str(round(np.mean(grouped_points[j], axis=0)[1],4))) for j in elem))
+        desc.append(' + '.join((fes_var.split(' ')[pos_cvs_fes[0]+2] + ': ' + str(round(np.mean(grouped_points[j], axis=0)[0],4)) + ' '+fes_var.split(' ')[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[j], axis=0)[1],4))) for j in elem))
         help_list = []
         for i in elem:
             tot_pbc.append(i)
@@ -260,7 +262,7 @@ if periodicity == True:
         sorted_coords_period.append(help_list)
     for i,elem in enumerate(sorted_coords):
         if not i in tot_pbc:
-            desc.append('CV1: ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' CV2: ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)))
+            desc.append(fes_var.split(' ')[pos_cvs_fes[0]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var.split(' ')[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)))
             sorted_coords_period.append(elem)
     sorted_coords = sorted_coords_period
     print(str(len(sorted_coords)) + ' minima identified')
@@ -303,8 +305,8 @@ plt.figure(figsize=(8,6), dpi=100)
 plt.imshow(bins, interpolation='gaussian', cmap='nipy_spectral')
 plt.xticks(np.linspace(-0.5,dimX-0.5,5),np.round(np.linspace(low_max_a,high_max_a, num=5),2))
 plt.yticks(np.linspace(-0.5,dimY-0.5,5),np.round(np.linspace(high_max_b,low_max_b, num=5),2))
-plt.xlabel('CV1 [a.U.]')
-plt.ylabel('CV2 [a.U.]')
+plt.xlabel(fes_var.split(' ')[pos_cvs_fes[0]+2] + ' [a.U.]')
+plt.ylabel(fes_var.split(' ')[pos_cvs_fes[1]+2] + ' [a.U.]')
 plt.axis('tight')
 plt.title('threshold: ' + str(round(thresh_val,3)) + ' a.U.')
 plt.plot(outline_show_a, outline_show_b, '.', color='white')
@@ -320,7 +322,7 @@ for i,elem in enumerate(sorted_coords):
         if periodicity == True:
             overviewfile.writelines('min_' + str(i) + ': ' + desc[i] + '\n')
         else:
-            overviewfile.writelines('min_' + str(i) + ': CV1: ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' CV2: ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
+            overviewfile.writelines('min_' + str(i) + ': '+ fes_var.split(' ')[pos_cvs_fes[0]+2] +': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var.split(' ')[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
     with tqdm.tqdm(total=len(elem), desc='min ' + str(i) + ': ' + str(len(elem)) + ' frames', leave=False) as progress_bar:
         for o in range(len(elem)):
             indx_a = np.where(a==sorted_coords[i][o][0])[0]
