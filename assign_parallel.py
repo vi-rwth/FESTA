@@ -1,6 +1,5 @@
 import numpy as np
 import os
-import sys
 import time 
 import itertools as it
 import shapely.geometry
@@ -13,13 +12,19 @@ from matplotlib import ticker
 import operator as op
 import shutil
 import warnings
+import argparse
 warnings.filterwarnings('ignore')
+parser = argparse.ArgumentParser()
 
-try:
-  topo = sys.argv[4]
-except IndexError:
-  topo = None
-T, thresh, traj = sys.argv[1:]
+parser.add_argument('-traj', dest='traj', required=True, help='!REQUIRED! MD trajectory-file name in the MD-output-directory. Format is also used for output-files.', type=str)
+parser.add_argument('-md', dest='md_dir', default=os.getcwd(), help='MD-output-directory path. DEFAULT: Current directory path.')
+parser.add_argument('-thresh', dest='thresh', default=None, help='Specifies threshold for assigning. Input value has to correspond with values in FES-file. DEFAULT: Lowest 1/12 of the energy span.', type=float)
+parser.add_argument('-topo', dest='topo', default=None, help='MD topology-file name in the MD-output-directory, if trajectory-file does not specify topology. DEFAULT: None.', type=str)
+parser.add_argument('-fes', dest='fes', default='fes.dat', help='FES-file name in the MD-output-directory. DEFAULT: "fes.dat".', type=str)
+parser.add_argument('-colv', dest='colvar', default='COLVAR', help='COLVAR-file in the MD-output-directory. DEFAULT: "COLVAR".')
+parser.add_argument('-png', dest='fes_png', default=True, help='Specifies whether a PNG-visualization of the FES should be created. Expects True/False. DEFAULT: True.', type=bool)
+
+args = parser.parse_args()
 
 def init_worker_pdb(sorted_coords,a,b,lines,atom_count,head,desc,num_areas,barargs):
     tqdm.tqdm.set_lock(barargs)
@@ -134,9 +139,9 @@ def sort(i):
             indx_list.append(indx)
             progress_bar.update(1)
     try:
-        Gag.write('min_' + str(i) + '.' + traj.split('.')[1], frames=Gu.trajectory[indx_list])
+        Gag.write('min_' + str(i) + '.' + args.traj.split('.')[1], frames=Gu.trajectory[indx_list])
     except (IndexError, NameError):
-        if traj.endswith('.pdb'):
+        if args.traj.endswith('.pdb'):
             tempfile = open('min_' + str(i) + '.pdb', 'w')
             ref_point = [0,0,0]
             for o,elem_inner in enumerate(indx_list):
@@ -182,13 +187,12 @@ def sort(i):
         else:
             raise Exception('Multiple frames are not supported with this trajectory-format.')
     except (TypeError, ValueError):
-        print('MDAnalysis does not support writing in ' + traj.split('.')[1] + '-format, writing in xyz-format instead')
+        print('MDAnalysis does not support writing in ' + args.traj.split('.')[1] + '-format, writing in xyz-format instead')
         Gag.write('min_' + str(i) + '.xyz', frames=Gu.trajectory[indx_list])
 
 def sort_pdb_cp2k_prework():
-    f = open(traj, 'r+')
-    lines = f.readlines()
-    f.close()
+    with open(args.traj, 'r+') as f:
+        lines = f.readlines()
     atom_count, head = 0, 0
     for line in lines:
         if line.startswith('ATOM'):
@@ -200,15 +204,15 @@ def sort_pdb_cp2k_prework():
     return head, atom_count, lines
 
 if __name__ == '__main__':
-    print('working on directory: ' + T)
-    outline, bins, coords = [], [], []
+    print('working on directory: ' + args.md_dir)
+    outline = []
     count1, count2 = it.count(0), it.count(0)
     thresh_val, tot_min_frames, dimX, dimY = 0, 0, 0, 1
-    os.chdir(T)
+    os.chdir(args.md_dir)
 
-    with open('COLVAR', 'r') as colvar_file:
+    with open(args.colvar, 'r') as colvar_file:
         col_var = colvar_file.readline()
-    with open('fes.dat', 'r') as fes_file:
+    with open(args.fes, 'r') as fes_file:
         fes_var = fes_file.readline()
     pos_ener = fes_var.split(' ').index('file.free')-2
     com = list(set(col_var.split(' ')).intersection(fes_var.split(' ')))
@@ -223,16 +227,16 @@ if __name__ == '__main__':
     if not len(pos_cvs_fes) == 2 or not len(pos_cvs_col) == 2:
         raise Exception('Only MD-runs with 2 CVs supported')
         
-    data_fes = np.genfromtxt('fes.dat')
+    data_fes = np.genfromtxt(args.fes)
     data_fes_T = np.transpose(data_fes)
     a_fes, b_fes, ener = data_fes_T[pos_cvs_fes[0]].copy(), data_fes_T[pos_cvs_fes[1]].copy(), data_fes_T[pos_ener].copy()
 
-    if thresh == 'auto':
+    if args.thresh == None:
         thresh_val = max(ener) - abs(max(ener)-min(ener))*(1-1/12)
         print('automatically determined', end =' ') 
     else:
-        thresh_val = float(thresh)
-    print('threshold value: ' + str(thresh_val))
+        thresh_val = args.thresh
+    print('threshold value: ' + str(round(thresh_val,3)) + ' a.U.')
         
     b_count = b_fes[0]
     for elem in b_fes:
@@ -256,7 +260,7 @@ if __name__ == '__main__':
             pass
         
     tolerance = abs(a_fes[0]-a_fes[1])/2     
-    data_colvar = np.genfromtxt('COLVAR')
+    data_colvar = np.genfromtxt(args.colvar)
     data_colvar_T = np.transpose(data_colvar)
     a, b = data_colvar_T[pos_cvs_col[0]].copy(), data_colvar_T[pos_cvs_col[1]].copy()
 
@@ -346,13 +350,13 @@ if __name__ == '__main__':
         os.mkdir('minima')
 
     try:
-        if topo == None:
-            u = mda.Universe(traj, in_memory=True)
+        if args.topo == None:
+            u = mda.Universe(args.traj, in_memory=True)
         else:
-            u = mda.Universe(topo, traj, in_memory=True)
+            u = mda.Universe(args.topo, args.traj, in_memory=True)
         ag =u.select_atoms('all')
     except IndexError:
-        if traj.endswith('.pdb'):
+        if args.traj.endswith('.pdb'):
             head, atom_count, lines = sort_pdb_cp2k_prework()
         else:
             raise Exception('MDAnalysis does not support the topology- or trajectory-file.')
@@ -365,26 +369,26 @@ if __name__ == '__main__':
     with open('min_overview.txt', 'w') as overviewfile:
         pass
     
-    for _ in range(dimY):
-        bins.append(np.zeros(dimX))
-    for i in range(dimY):
-        for l in range(dimX):
-            bins[-1-i][l] = ener[next(count2)]
-
-    plt.figure(figsize=(8,6), dpi=100)
-    plt.imshow(bins, interpolation='gaussian', cmap='nipy_spectral')
-    plt.xticks(np.linspace(low_max_a,dimX-np.round(high_max_a,1),5),np.round(np.linspace(low_max_a,high_max_a, num=5),2))
-    plt.yticks(np.linspace(low_max_b,dimY-np.round(high_max_b,1),5),np.round(np.linspace(high_max_b,low_max_b, num=5),2))
-    plt.xlabel(fes_var.split(' ')[pos_cvs_fes[0]+2] + ' [a.U.]')
-    plt.ylabel(fes_var.split(' ')[pos_cvs_fes[1]+2] + ' [a.U.]')
-    plt.axis('tight')
-    plt.title('threshold: ' + str(round(thresh_val,3)) + ' a.U.')
-    plt.plot(outline_show_a, outline_show_b, '.', color='white')
-    cb = plt.colorbar(label='free energy [a.U.]', format="{x:.0f}")
-    tick_locator = ticker.MaxNLocator(nbins=8)
-    cb.locator = tick_locator
-    cb.update_ticks()    
-    plt.savefig('fes_visual.png',bbox_inches='tight')
+    if args.fes_png == True:
+        bins = np.zeros((dimY,dimX))
+        for i in range(dimY):
+            for l in range(dimX):
+                bins[-1-i,l] = ener[next(count2)]
+    
+        plt.figure(figsize=(8,6), dpi=100)
+        plt.imshow(bins, interpolation='gaussian', cmap='nipy_spectral')
+        plt.xticks(np.linspace(low_max_a,dimX-np.round(high_max_a,1),5),np.round(np.linspace(low_max_a,high_max_a, num=5),3))
+        plt.yticks(np.linspace(low_max_b,dimY-np.round(high_max_b,1),5),np.round(np.linspace(high_max_b,low_max_b, num=5),3))
+        plt.xlabel(fes_var.split(' ')[pos_cvs_fes[0]+2] + ' [a.U.]')
+        plt.ylabel(fes_var.split(' ')[pos_cvs_fes[1]+2] + ' [a.U.]')
+        plt.axis('tight')
+        plt.title('threshold: ' + str(round(thresh_val,3)) + ' a.U.')
+        plt.plot(outline_show_a, outline_show_b, '.', color='white')
+        cb = plt.colorbar(label='free energy [a.U.]', format="{x:.0f}")
+        tick_locator = ticker.MaxNLocator(nbins=8)
+        cb.locator = tick_locator
+        cb.update_ticks()    
+        plt.savefig('fes_visual.png',bbox_inches='tight')
     
     if len(sorted_coords) > os.cpu_count()-1:
         usable_cpu = os.cpu_count()-1
