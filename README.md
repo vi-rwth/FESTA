@@ -1,4 +1,4 @@
-# structure-from-fes
+# Metadynamics Structure Extraction Tool (MSET)
 
 ### Requirements
 
@@ -7,7 +7,7 @@ The metadynamics run has to be 3-dimensional (exactly 2 collective variables (CV
 The scripts use numpy, os, argparse, shutil, time, itertools, shapely, copy, multiprocessing (only for "parallel" script), MDAnalysis, matplotlib, operator and tqdm modules. These have to be installed before running the scripts.
 
 The MD-output directory has to include a FES-file, a trajectory-file and a COLVAR-file. The COLVAR- and FES-files are expected be created using PLUMED or have PLUMED-like appearance. Only one COLVAR-file is expected.<br>
-The COLVAR and trajectory-file must have a similar MD-step length.
+The COLVAR- and trajectory-file must have a similar MD-step length.
 
 Most trajectory-formats supported by MDAnalysis are supported here as well. For a complete list see:<br>
 https://docs.mdanalysis.org/stable/documentation_pages/coordinates/init.html#id2 <br>
