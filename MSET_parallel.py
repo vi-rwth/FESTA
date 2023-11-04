@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import sys
 import time 
 import itertools as it
 import shapely.geometry
@@ -42,7 +43,7 @@ def init_worker(sorted_coords,a,b,u,ag,desc,num_areas,barargs):
     tqdm.tqdm.set_lock(barargs)
     global Gsorted_coords
     global Ga
-    global Gb 
+    global Gb
     global Gu
     global Gag
     global Gdesc
@@ -57,19 +58,14 @@ def init_polygon(all_points,tolerance,mp_sorted_coords, barargs):
     Gall_points, Gtolerance, managed_list = all_points, tolerance, mp_sorted_coords
     
 def det_min_frames(j):
-    ab, coords = [], []
+    coords = []
     pos1 = mp.current_process()._identity[0]-2
     with tqdm.tqdm(total=len(all_points), desc='min ' + str(j), position=pos1, leave=False) as pbar:
-        for point in Gall_points:
+        for i,point in enumerate(Gall_points):
             if polygons[j].distance(point) <= Gtolerance:
-                ab.append(True)
-            else:
-                ab.append(False)
+                coords.append([a[i],b[i]])
             pbar.update(1)
-    for i,elem2 in enumerate(ab):
-        if elem2 == True:
-            coords.append([a[i],b[i]])
-    managed_list.append(coords)
+        managed_list.append(coords)
 
 def have_common_elem(l1, l2):
     for elem in l2:
@@ -132,8 +128,8 @@ def sort(i):
     pos = mp.current_process()._identity[0]-2-Gnum_areas
     with tqdm.tqdm(total=len(Gsorted_coords[i]), desc='min ' + str(i) + ': ' + str(len(Gsorted_coords[i])) + ' frames', position=pos, leave=False) as progress_bar:
         for o in range(len(Gsorted_coords[i])):
-            indx_a = np.where(a==sorted_coords[i][o][0])[0]
-            indx_b = np.where(b==sorted_coords[i][o][1])[0]
+            indx_a = np.where(Ga==Gsorted_coords[i][o][0])[0]
+            indx_b = np.where(Gb==Gsorted_coords[i][o][1])[0]
             both = set(indx_a).intersection(indx_b)
             indx = both.pop()
             indx_list.append(indx)
@@ -204,6 +200,10 @@ def sort_pdb_cp2k_prework():
     return head, atom_count, lines
 
 if __name__ == '__main__':
+    print('                                                   ')
+    print('.: Metadynamics Structure Extraction Tool - MSET :.')
+    print('           .: Multiprocessing version :.           ')
+    print('                                                   ')
     print('working on directory: ' + args.md_dir)
     outline = []
     count1, count2 = it.count(0), it.count(0)
@@ -226,11 +226,15 @@ if __name__ == '__main__':
     
     if not len(pos_cvs_fes) == 2 or not len(pos_cvs_col) == 2:
         raise Exception('Only MD-runs with 2 CVs supported')
-        
+    
     data_fes = np.genfromtxt(args.fes)
     data_fes_T = np.transpose(data_fes)
     a_fes, b_fes, ener = data_fes_T[pos_cvs_fes[0]].copy(), data_fes_T[pos_cvs_fes[1]].copy(), data_fes_T[pos_ener].copy()
-
+    
+    for i in range(len(ener)):
+        if not np.isfinite(ener[i]):
+            raise Exception('Non-finite value (NaN or inf) discovered in FES-file')
+    
     if args.thresh == None:
         thresh_val = max(ener) - abs(max(ener)-min(ener))*(1-1/12)
         print('automatically determined', end =' ') 
@@ -264,14 +268,31 @@ if __name__ == '__main__':
     data_colvar_T = np.transpose(data_colvar)
     a, b = data_colvar_T[pos_cvs_col[0]].copy(), data_colvar_T[pos_cvs_col[1]].copy()
 
+    try:
+        if args.topo == None:
+            u = mda.Universe(args.traj, in_memory=True)
+        else:
+            u = mda.Universe(args.topo, args.traj, in_memory=True)
+        ag =u.select_atoms('all')
+        if not len(u.trajectory) == len(a):
+            raise Exception('COLVAR-file and trajectory-file must have similar step length' + str(len(a)) + ' vs ' + str(len(u.trajectory)))
+    except IndexError:
+        if args.traj.endswith('.pdb'):
+            head, atom_count, lines = sort_pdb_cp2k_prework()
+            if not (len(lines)-head)/(atom_count+3) == len(a):
+                raise Exception('COLVAR-file and trajectory-file must have similar step length, here: ' + str(len(a)) + ' vs ' + str((len(lines)-head)/(atom_count+3)))
+        else:
+            raise Exception('MDAnalysis does not support the topology- or trajectory-file')
+    except FileNotFoundError:
+        raise
+
     start1 = time.perf_counter()
-    all_points = []
-    for i, elem in enumerate(a):
-        all_points.append(shapely.geometry.Point(elem,b[i]))
+
+    all_points = [shapely.geometry.Point(a[i],b[i]) for i in range(len(a))]
+        
     grouped_points = group_numbers(outline, 20*np.sqrt(8)*tolerance)
-    polygons = []
-    for groups in grouped_points:
-        polygons.append(shapely.geometry.Polygon(groups))
+
+    polygons = [shapely.geometry.Polygon(groups) for groups in grouped_points]
         
     periodicity = False
     if edge:
@@ -348,37 +369,21 @@ if __name__ == '__main__':
     except FileExistsError:
         shutil.rmtree('minima')
         os.mkdir('minima')
-
-    try:
-        if args.topo == None:
-            u = mda.Universe(args.traj, in_memory=True)
-        else:
-            u = mda.Universe(args.topo, args.traj, in_memory=True)
-        ag =u.select_atoms('all')
-    except IndexError:
-        if args.traj.endswith('.pdb'):
-            head, atom_count, lines = sort_pdb_cp2k_prework()
-        else:
-            raise Exception('MDAnalysis does not support the topology- or trajectory-file.')
-    except FileNotFoundError:
-        raise
-    except Exception:
-        raise Exception('MDAnalysis does not support the topology- or trajectory-file.')
     
     os.chdir('minima')
     with open('min_overview.txt', 'w') as overviewfile:
         pass
     
     if args.fes_png == True:
-        bins = np.zeros((dimY,dimX))
+        bins = np.empty((dimY,dimX))
         for i in range(dimY):
             for l in range(dimX):
                 bins[-1-i,l] = ener[next(count2)]
     
         plt.figure(figsize=(8,6), dpi=100)
         plt.imshow(bins, interpolation='gaussian', cmap='nipy_spectral')
-        plt.xticks(np.linspace(low_max_a,dimX-np.round(high_max_a,1),5),np.round(np.linspace(low_max_a,high_max_a, num=5),3))
-        plt.yticks(np.linspace(low_max_b,dimY-np.round(high_max_b,1),5),np.round(np.linspace(high_max_b,low_max_b, num=5),3))
+        plt.xticks(np.linspace(-0.5,dimX-0.5,5),np.round(np.linspace(low_max_a,high_max_a, num=5),3))
+        plt.yticks(np.linspace(-0.5,dimY-0.5,5),np.round(np.linspace(high_max_b,low_max_b, num=5),3))
         plt.xlabel(fes_var.split(' ')[pos_cvs_fes[0]+2] + ' [a.U.]')
         plt.ylabel(fes_var.split(' ')[pos_cvs_fes[1]+2] + ' [a.U.]')
         plt.axis('tight')
@@ -397,7 +402,7 @@ if __name__ == '__main__':
     
     start3 = time.perf_counter()
     try:
-        pool = mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_coords,a,b,u,ag,desc,len(polygons),mp.RLock(),)) 
+        pool = mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_coords,ab_tuple,u,ag,desc,len(polygons),mp.RLock(),)) 
     except NameError:
         pool = mp.Pool(processes = usable_cpu, initializer=init_worker_pdb, initargs=(sorted_coords,a,b,lines,atom_count,head,desc,len(polygons),mp.RLock(),))
     out = pool.map(sort, range(len(sorted_coords)))
@@ -405,3 +410,6 @@ if __name__ == '__main__':
     pool.join()
 
     print(' time needed for postprocessing step: ' + str(round(time.perf_counter() - start3,3)) + ' s')
+    
+    print('                                                   ')
+    print('           .: terminated successfully :.           ')
