@@ -130,6 +130,10 @@ def sort_pdb_cp2k_prework():
             head += 1
     return head, atom_count, lines
 
+print('                                                   ')
+print('.: Metadynamics Structure Extraction Tool - MSET :.')
+print('                .: Serial version :.               ')
+print('                                                   ')
 print('working on directory: ' + args.md_dir)
 outline = []
 count1, count2 = it.count(0), it.count(0)
@@ -155,6 +159,10 @@ if not len(pos_cvs_fes) == 2 or not len(pos_cvs_col) == 2:
 data_fes = np.genfromtxt(args.fes)
 data_fes_T = np.transpose(data_fes)
 a_fes, b_fes, ener = data_fes_T[pos_cvs_fes[0]].copy(), data_fes_T[pos_cvs_fes[1]].copy(), data_fes_T[pos_ener].copy()
+
+for i in range(len(ener)):
+    if not np.isfinite(ener[i]):
+        raise Exception('Non-finite value (NaN or inf) discovered in FES-file')
 
 if args.thresh == None:
     thresh_val = max(ener) - abs(max(ener)-min(ener))*(1-1/12)
@@ -190,15 +198,29 @@ data_colvar = np.genfromtxt(args.colvar)
 data_colvar_T = np.transpose(data_colvar)
 a, b = data_colvar_T[pos_cvs_col[0]].copy(), data_colvar_T[pos_cvs_col[1]].copy()
 
+try:
+    if args.topo == None:
+        u = mda.Universe(args.traj, in_memory=True)
+    else:
+        u = mda.Universe(args.topo, args.traj, in_memory=True)
+    ag =u.select_atoms('all')
+    if not len(u.trajectory) == len(a):
+        raise Exception('COLVAR-file and trajectory-file must have similar step length, here: ' + str(len(a)) + ' vs ' + str(len(u.trajectory)))
+except IndexError:
+    if args.traj.endswith('.pdb'):
+        head, atom_count, lines = sort_pdb_cp2k_prework()
+        if not (len(lines)-head)/(atom_count+3) == len(a):
+            raise Exception('COLVAR-file and trajectory-file must have similar step length, here: ' + str(len(a)) + ' vs ' + str((len(lines)-head)/(atom_count+3)))
+    else:
+        raise Exception('MDAnalysis does not support the topology- or trajectory-file')
+except FileNotFoundError:
+    raise
+        
 start1 = time.perf_counter()
-all_points, sorted_coords = [], []
-for i, elem in enumerate(a):
-    all_points.append(shapely.geometry.Point(elem,b[i]))
+all_points = [shapely.geometry.Point(a[i],b[i]) for i in range(len(a))]
 grouped_points = group_numbers(outline, 20*np.sqrt(8)*tolerance)
 
-polygons = []
-for groups in grouped_points:
-    polygons.append(shapely.geometry.Polygon(groups))
+polygons = [shapely.geometry.Polygon(groups) for groups in grouped_points]
 
 periodicity = False    
 if edge:
@@ -237,17 +259,15 @@ if periodicity == True:
     print('distinctive areas identified')
 else:
     print('minima identified')
-    
-for polygon in tqdm.tqdm(polygons, desc='determining minima frames', leave=False):
-    ab, coords = [], []
-    for point in all_points:
-        if polygon.distance(point) <= tolerance:
-            ab.append(True)
-        else:
-            ab.append(False)
-    for i,elem2 in enumerate(ab):
-        if elem2 == True:
-            coords.append([a[i],b[i]])
+
+sorted_coords = []    
+for j,polygon in enumerate(polygons):
+    coords = []
+    with tqdm.tqdm(total=len(all_points), desc='min ' + str(j), leave=False) as pbar:
+        for i,point in enumerate(all_points):
+            if polygon.distance(point) <= tolerance:
+                coords.append([a[i],b[i]])
+            pbar.update(1)
     tot_min_frames += len(coords)
     sorted_coords.append(coords)
 print('processed ' + str(len(a)) + ' frames')
@@ -278,37 +298,21 @@ except FileExistsError:
     os.mkdir('minima')
 
 start3 = time.perf_counter()
-
-try:
-    if args.topo == None:
-        u = mda.Universe(args.traj, in_memory=True)
-    else:
-        u = mda.Universe(args.topo, args.traj, in_memory=True)
-    ag =u.select_atoms('all')
-except IndexError:
-    if args.traj.endswith('.pdb'):
-        head, atom_count, lines = sort_pdb_cp2k_prework()
-    else:
-        raise Exception('MDAnalysis does not support the topology- or trajectory-file.')
-except FileNotFoundError:
-    raise
-except Exception:
-    raise Exception('MDAnalysis does not support the topology- or trajectory-file.')
     
 os.chdir('minima')
 with open('min_overview.txt', 'w') as overviewfile:
     pass
 
 if args.fes_png == True:
-    bins = np.zeros((dimY,dimX))
+    bins = np.empty((dimY,dimX))
     for i in range(dimY):
         for l in range(dimX):
             bins[-1-i,l] = ener[next(count2)]
     
     plt.figure(figsize=(8,6), dpi=100)
     plt.imshow(bins, interpolation='gaussian', cmap='nipy_spectral')
-    plt.xticks(np.linspace(-0.5,dimX-0.5,5),np.round(np.linspace(low_max_a,high_max_a, num=5),2))
-    plt.yticks(np.linspace(-0.5,dimY-0.5,5),np.round(np.linspace(high_max_b,low_max_b, num=5),2))
+    plt.xticks(np.linspace(-0.5,dimX-0.5,5),np.round(np.linspace(low_max_a,high_max_a, num=5),3))
+    plt.yticks(np.linspace(-0.5,dimY-0.5,5),np.round(np.linspace(high_max_b,low_max_b, num=5),3))
     plt.xlabel(fes_var.split(' ')[pos_cvs_fes[0]+2] + ' [a.U.]')
     plt.ylabel(fes_var.split(' ')[pos_cvs_fes[1]+2] + ' [a.U.]')
     plt.axis('tight')
@@ -345,9 +349,11 @@ for i,elem in enumerate(sorted_coords):
                 ref_point = sort_pdb_cp2k(o,elem_inner, ref_point)
             tempfile.close()
         else:
-            raise Exception('Multiple frames are not supported with this trajectory-format.')
+            raise Exception('Multiple frames are not supported with this trajectory-format')
     except (TypeError, ValueError):
         print('MDAnalysis does not support writing in ' + args.traj.split('.')[1] + '-format, writing in xyz-format instead')
         ag.write('min_' + str(i) + '.xyz', frames=u.trajectory[indx_list])
             
 print('time needed for postprocessing step: ' + str(round(time.perf_counter() - start3,3)) + ' s')
+print('                                                   ')
+print('           .: terminated successfully :.           ')
