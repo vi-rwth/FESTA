@@ -275,7 +275,7 @@ if __name__ == '__main__':
             u = mda.Universe(args.topo, args.traj, in_memory=True)
         ag =u.select_atoms('all')
         if not len(u.trajectory) == len(a):
-            raise Exception('COLVAR-file and trajectory-file must have similar step length' + str(len(a)) + ' vs ' + str(len(u.trajectory)))
+            raise Exception('COLVAR-file and trajectory-file must have similar step length, here' + str(len(a)) + ' vs ' + str(len(u.trajectory)))
     except IndexError:
         if args.traj.endswith('.pdb'):
             head, atom_count, lines = sort_pdb_cp2k_prework()
@@ -286,12 +286,10 @@ if __name__ == '__main__':
     except FileNotFoundError:
         raise
 
-    start1 = time.perf_counter()
-
-    all_points = [shapely.geometry.Point(a[i],b[i]) for i in range(len(a))]
-        
+    all_points = [shapely.geometry.Point(a[i],b[i]) for i in range(len(a))]        
     grouped_points = group_numbers(outline, 20*np.sqrt(8)*tolerance)
 
+    start1 = time.perf_counter()
     polygons = [shapely.geometry.Polygon(groups) for groups in grouped_points]
         
     periodicity = False
