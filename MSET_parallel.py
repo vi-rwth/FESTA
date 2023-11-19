@@ -108,10 +108,13 @@ def group_numbers(numbers, max_diff):
                     if dists[i] < min_distance:
                         sec_run = True
                 if sec_run == True:
-                    nih = np.empty(len(dists)-1)
-                    for j in range(len(dists)-1):
-                            nih[j] = dists[j]+dists[j+1]
-                    group.insert(np.argmin(nih)+1, seed_elem)
+                    try:
+                        nih = np.empty(len(dists)-1)
+                        for j in range(len(dists)-1):
+                                nih[j] = dists[j]+dists[j+1]
+                        group.insert(np.argmin(nih)+1, seed_elem)
+                    except ValueError:
+                        group.append(seed_elem)
                     break
             if sec_run == False:
                 subgroup.append(seed_elem)
@@ -289,11 +292,16 @@ if __name__ == '__main__':
         raise
 
     all_points = [shapely.geometry.Point(a[i],b[i]) for i in range(len(a))]        
-    grouped_points = group_numbers(outline, 20*np.sqrt(8)*tolerance)
+    grouped_points = group_numbers(outline, 10*np.sqrt(8)*tolerance)
 
     start1 = time.perf_counter()
-    polygons = [shapely.geometry.Polygon(groups) for groups in grouped_points]
-        
+    try:
+        polygons = [shapely.geometry.Polygon(groups) for groups in grouped_points]
+    except ValueError:
+        clean_gp = [groups for groups in grouped_points if len(groups)>3]
+        polygons = [shapely.geometry.Polygon(groups) for groups in clean_gp]
+        grouped_points = clean_gp
+    
     periodicity = False
     if edge:
         edge_points, pbc = [], []
