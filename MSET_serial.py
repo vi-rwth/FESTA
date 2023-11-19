@@ -36,44 +36,46 @@ def group_numbers(numbers, max_diff):
     separate_groups, subgroup = [], []
     tmplist = copy.deepcopy(numbers)
     seed_elem = tmplist[0]
-    with tqdm.tqdm(total=len(tmplist), desc='grouping outline', leave=False) as pbar:
-        while any(tmplist):  
+    while any(tmplist):  
+        min_distance = max_diff
+        found = False
+        try:
+            tmplist.remove(seed_elem)
+            new_group_found = False
+        except ValueError:
+            pass
+        for compare_elem in tmplist: 
+            if ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5 < min_distance: 
+                found = True
+                min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
+                min_elem = compare_elem
+        if found == True and any(subgroup):
+            if new_group_found == False:
+                subgroup.append(seed_elem)
+            seed_elem = min_elem   
+        else:
+            if any(subgroup):  
+                separate_groups.append(subgroup)
+            subgroup = []
+            sec_run = False
             min_distance = max_diff
-            found = False
-            try:
-                tmplist.remove(seed_elem)
-                new_group_found = False
-            except ValueError:
-                pass
-            for compare_elem in tmplist: 
-                if ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5 < min_distance: 
-                    found = True
-                    min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
-                    min_elem = compare_elem
-            if found == True and any(subgroup):
-                if new_group_found == False:
-                    subgroup.append(seed_elem)
-                seed_elem = min_elem   
-            else:
-                if any(subgroup):  
-                    separate_groups.append(subgroup)
-                subgroup = []
-                sec_run = False
-                min_distance = max_diff
-                for group in separate_groups:
-                    for elem in group:
-                        if  ((seed_elem[0]-elem[0])**2 + (seed_elem[1]-elem[1])**2)**0.5 < min_distance:
-                            group.append(seed_elem)
-                            sec_run = True
-                            break
-                    if sec_run == True:
-                        break
-                if sec_run == False:
-                    subgroup.append(seed_elem)
-                    new_group_found = True
-                elif any(tmplist):
-                    seed_elem = tmplist[0]
-            pbar.update(1)
+            for group in separate_groups:
+                dists = np.empty(len(group))
+                for i,elem in enumerate(group):
+                    dists[i] = ((seed_elem[0]-elem[0])**2 + (seed_elem[1]-elem[1])**2)**0.5
+                    if dists[i] < min_distance:
+                        sec_run = True
+                if sec_run == True:
+                    nih = np.empty(len(dists)-1)
+                    for j in range(len(dists)-1):
+                            nih[j] = dists[j]+dists[j+1]
+                    group.insert(np.argmin(nih)+1, seed_elem)
+                    break
+            if sec_run == False:
+                subgroup.append(seed_elem)
+                new_group_found = True
+            elif any(tmplist):
+                seed_elem = tmplist[0]
     return separate_groups
 
 def sort_pdb_cp2k(o,indx, ref_point):
@@ -184,7 +186,7 @@ outline_show_a, outline_show_b, edge = [], [], []
 
 for i in tqdm.tqdm(range(len(ener)),desc='collecting outline', leave=False):
     try:
-        if ener[i]<thresh_val and (a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b or ener[i-1]>thresh_val or ener[i+1]>thresh_val or ener[i-dimX]>thresh_val or ener[i+dimX]>thresh_val):
+        if elem<thresh_val and (a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b or ener[i-1]>thresh_val or ener[i+1]>thresh_val or ener[i-dimY]>thresh_val or ener[i+dimY]>thresh_val or ener[i+1+dimY]>thresh_val or ener[i-1+dimY]>thresh_val or ener[i+1-dimY]>thresh_val or ener[i-1-dimY]>thresh_val):
             if a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b:
                 edge.append([a_fes[i],b_fes[i]])
             outline.append([a_fes[i],b_fes[i]])
@@ -309,7 +311,7 @@ if args.fes_png == True:
         for l in range(dimX):
             bins[-1-i,l] = ener[next(count2)]
     
-    plt.figure(figsize=(8,6), dpi=100)
+    plt.figure(figsize=(8,6), dpi=300)
     plt.imshow(bins, interpolation='gaussian', cmap='nipy_spectral')
     plt.xticks(np.linspace(-0.5,dimX-0.5,5),np.round(np.linspace(low_max_a,high_max_a, num=5),3))
     plt.yticks(np.linspace(-0.5,dimY-0.5,5),np.round(np.linspace(high_max_b,low_max_b, num=5),3))
@@ -317,7 +319,7 @@ if args.fes_png == True:
     plt.ylabel(fes_var.split(' ')[pos_cvs_fes[1]+2] + ' [a.U.]')
     plt.axis('tight')
     plt.title('threshold: ' + str(round(thresh_val,3)) + ' a.U.')
-    plt.plot(outline_show_a, outline_show_b, '.', color='white')
+    plt.plot(outline_show_a, outline_show_b, '.', color='white', markersize=2)
     cb = plt.colorbar(label='free energy [a.U.]', format="{x:.0f}")
     tick_locator = ticker.MaxNLocator(nbins=8)
     cb.locator = tick_locator
