@@ -1,6 +1,5 @@
 import numpy as np
 import os
-import sys
 import time 
 import itertools as it
 import shapely.geometry
@@ -50,20 +49,23 @@ def init_worker(sorted_coords,a,b,u,ag,desc,num_areas,barargs):
     global Gnum_areas
     Gsorted_coords, Ga, Gb, Gu, Gag, Gdesc, Gnum_areas = sorted_coords, a, b, u, ag, desc, num_areas
     
-def init_polygon(all_points,tolerance,mp_sorted_coords, barargs):
+def init_polygon(all_points,tolerance,mp_sorted_coords,polygons,a,b, barargs):
     tqdm.tqdm.set_lock(barargs)
     global Gall_points
+    global Ga
+    global Gb
     global Gtolerance
     global managed_list
-    Gall_points, Gtolerance, managed_list = all_points, tolerance, mp_sorted_coords
+    global Gpolygons
+    Gall_points, Gtolerance, managed_list, Gpolygons, Ga, Gb = all_points, tolerance, mp_sorted_coords, polygons, a, b
     
 def det_min_frames(j):
     coords = []
     pos1 = mp.current_process()._identity[0]-2
-    with tqdm.tqdm(total=len(all_points), desc='min ' + str(j), position=pos1, leave=False) as pbar:
+    with tqdm.tqdm(total=len(Gall_points), desc='min ' + str(j), position=pos1, leave=False) as pbar:
         for i,point in enumerate(Gall_points):
-            if polygons[j].distance(point) <= Gtolerance:
-                coords.append([a[i],b[i]])
+            if Gpolygons[j].distance(point) <= Gtolerance:
+                coords.append([Ga[i],Gb[i]])
             pbar.update(1)
         managed_list.append(coords)
 
@@ -78,49 +80,51 @@ def group_numbers(numbers, max_diff):
     separate_groups, subgroup = [], []
     tmplist = copy.deepcopy(numbers)
     seed_elem = tmplist[0]
-    while any(tmplist):  
-        min_distance = max_diff
-        found = False
-        try:
-            tmplist.remove(seed_elem)
-            new_group_found = False
-        except ValueError:
-            pass
-        for compare_elem in tmplist: 
-            if ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5 < min_distance: 
-                found = True
-                min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
-                min_elem = compare_elem
-        if found == True and any(subgroup):
-            if new_group_found == False:
-                subgroup.append(seed_elem)
-            seed_elem = min_elem   
-        else:
-            if any(subgroup):  
-                separate_groups.append(subgroup)
-            subgroup = []
-            sec_run = False
+    with tqdm.tqdm(total=len(tmplist), desc='grouping outline', leave=False) as pbar:
+        while any(tmplist):  
             min_distance = max_diff
-            for group in separate_groups:
-                dists = np.empty(len(group))
-                for i,elem in enumerate(group):
-                    dists[i] = ((seed_elem[0]-elem[0])**2 + (seed_elem[1]-elem[1])**2)**0.5
-                    if dists[i] < min_distance:
-                        sec_run = True
-                if sec_run == True:
-                    try:
-                        nih = np.empty(len(dists)-1)
-                        for j in range(len(dists)-1):
-                                nih[j] = dists[j]+dists[j+1]
-                        group.insert(np.argmin(nih)+1, seed_elem)
-                    except ValueError:
-                        group.append(seed_elem)
-                    break
-            if sec_run == False:
-                subgroup.append(seed_elem)
-                new_group_found = True
-            elif any(tmplist):
-                seed_elem = tmplist[0]
+            found = False
+            try:
+                tmplist.remove(seed_elem)
+                new_group_found = False
+            except ValueError:
+                pass
+            for compare_elem in tmplist: 
+                if ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5 < min_distance: 
+                    found = True
+                    min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
+                    min_elem = compare_elem
+            if found == True and any(subgroup):
+                if new_group_found == False:
+                    subgroup.append(seed_elem)
+                seed_elem = min_elem   
+            else:
+                if any(subgroup):  
+                    separate_groups.append(subgroup)
+                subgroup = []
+                sec_run = False
+                min_distance = max_diff
+                for group in separate_groups:
+                    dists = np.empty(len(group))
+                    for i,elem in enumerate(group):
+                        dists[i] = ((seed_elem[0]-elem[0])**2 + (seed_elem[1]-elem[1])**2)**0.5
+                        if dists[i] < min_distance:
+                            sec_run = True
+                    if sec_run == True:
+                        try:
+                            nih = np.empty(len(dists)-1)
+                            for j in range(len(dists)-1):
+                                    nih[j] = dists[j]+dists[j+1]
+                            group.insert(np.argmin(nih)+1, seed_elem)
+                        except ValueError:
+                            group.append(seed_elem)
+                        break
+                if sec_run == False:
+                    subgroup.append(seed_elem)
+                    new_group_found = True
+                elif any(tmplist):
+                    seed_elem = tmplist[0]
+            pbar.update(1)
     return separate_groups
     
 def sort(i):
@@ -129,7 +133,7 @@ def sort(i):
         if Gdesc:
             overviewfile.writelines('min_' + str(i) + ': ' + Gdesc[i] + '\n')
         else:
-            overviewfile.writelines('min_' + str(i) + ': '+ fes_var.split(' ')[pos_cvs_fes[0]+2] +': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var.split(' ')[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
+            overviewfile.writelines('min_' + str(i) + ': '+ fes_var[pos_cvs_fes[0]+2] +': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var.split(' ')[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
     pos = mp.current_process()._identity[0]-2-Gnum_areas
     with tqdm.tqdm(total=len(Gsorted_coords[i]), desc='min ' + str(i) + ': ' + str(len(Gsorted_coords[i])) + ' frames', position=pos, leave=False) as progress_bar:
         for o in range(len(Gsorted_coords[i])):
@@ -216,16 +220,18 @@ if __name__ == '__main__':
     os.chdir(args.md_dir)
 
     with open(args.colvar, 'r') as colvar_file:
-        col_var = colvar_file.readline()
+        col_var = colvar_file.readline().split(' ')
+        col_var[-1] = col_var[-1][:-1]
     with open(args.fes, 'r') as fes_file:
-        fes_var = fes_file.readline()
-    pos_ener = fes_var.split(' ').index('file.free')-2
-    com = list(set(col_var.split(' ')).intersection(fes_var.split(' ')))
+        fes_var = fes_file.readline().split(' ')
+        fes_var[-1] = fes_var[-1][:-1]
+    pos_ener = fes_var.index('file.free')-2
+    com = list(set(col_var).intersection(fes_var))
     pos_cvs_fes, pos_cvs_col = [], []
     for elem in com:
         if not elem == '#!' and not elem == 'FIELDS':
-            pos_cvs_fes.append(fes_var.split(' ').index(elem)-2)
-            pos_cvs_col.append(col_var.split(' ').index(elem)-2)            
+            pos_cvs_fes.append(fes_var.index(elem)-2)
+            pos_cvs_col.append(col_var.index(elem)-2)            
     pos_cvs_fes.sort()
     pos_cvs_col.sort()
     
@@ -233,8 +239,7 @@ if __name__ == '__main__':
         raise Exception('Only MD-runs with 2 CVs supported')
     
     data_fes = np.genfromtxt(args.fes)
-    data_fes_T = np.transpose(data_fes)
-    a_fes, b_fes, ener = data_fes_T[pos_cvs_fes[0]].copy(), data_fes_T[pos_cvs_fes[1]].copy(), data_fes_T[pos_ener].copy()
+    a_fes, b_fes, ener = data_fes.T[pos_cvs_fes[0]].copy(), data_fes.T[pos_cvs_fes[1]].copy(), data_fes.T[pos_ener].copy()
     
     for i in range(len(ener)):
         if not np.isfinite(ener[i]):
@@ -247,19 +252,34 @@ if __name__ == '__main__':
         thresh_val = args.thresh
     print('threshold value: ' + str(round(thresh_val,3)) + ' a.U.')
         
-    b_count = b_fes[0]
-    for elem in b_fes:
-        if not elem == b_count:
-            dimY += 1
-            b_count = elem    
-    while b_fes[next(count1)] == b_fes[0]:
-        dimX += 1
-    low_max_a, high_max_a, low_max_b, high_max_b = a_fes[0], a_fes[dimX-1], b_fes[0], b_fes[-1]
+    b_central = True
+    if (b_fes[0] == b_fes[1]):
+        while b_fes[next(count1)] == b_fes[0]:
+            dimX += 1
+        b_count = b_fes[0]
+        for elem in b_fes:
+            if not elem == b_count:
+                dimY += 1
+                b_count = elem
+        high_max_a, high_max_b  = a_fes[dimX-1], b_fes[-1]
+        tolerance = abs(a_fes[0]-a_fes[1])/2
+    else:
+        b_central = False
+        while a_fes[next(count1)] == a_fes[0]:
+            dimX += 1
+        a_count = a_fes[0]
+        for elem in a_fes:
+            if not elem == a_count:
+                dimY += 1
+                a_count = elem
+        high_max_a, high_max_b  = a_fes[-1], b_fes[dimY-1]
+        tolerance = abs(b_fes[0]-b_fes[1])/2
+    low_max_a, low_max_b = a_fes[0], b_fes[0]
     outline_show_a, outline_show_b, edge = [], [], []
     
     for i in tqdm.tqdm(range(len(ener)),desc='collecting outline', leave=False):
         try:
-            if elem<thresh_val and (a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b or ener[i-1]>thresh_val or ener[i+1]>thresh_val or ener[i-dimY]>thresh_val or ener[i+dimY]>thresh_val or ener[i+1+dimY]>thresh_val or ener[i-1+dimY]>thresh_val or ener[i+1-dimY]>thresh_val or ener[i-1-dimY]>thresh_val):
+            if ener[i]<thresh_val and (a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b or ener[i-1]>thresh_val or ener[i+1]>thresh_val or ener[i-dimY]>thresh_val or ener[i+dimY]>thresh_val or ener[i+1+dimY]>thresh_val or ener[i-1+dimY]>thresh_val or ener[i+1-dimY]>thresh_val or ener[i-1-dimY]>thresh_val):
                 if a_fes[i] == low_max_a or a_fes[i] == high_max_a or b_fes[i] == low_max_b or b_fes[i] == high_max_b:
                     edge.append([a_fes[i],b_fes[i]])
                 outline.append([a_fes[i],b_fes[i]])
@@ -267,12 +287,11 @@ if __name__ == '__main__':
                 outline_show_b.append(dimY-abs((b_fes[i]-low_max_b)/((high_max_b-low_max_b)/dimY)))
         except IndexError:
             pass
-        
-    tolerance = abs(a_fes[0]-a_fes[1])/2     
+    
     data_colvar = np.genfromtxt(args.colvar)
-    data_colvar_T = np.transpose(data_colvar)
-    a, b = data_colvar_T[pos_cvs_col[0]].copy(), data_colvar_T[pos_cvs_col[1]].copy()
-
+    a, b = data_colvar.T[pos_cvs_col[0]].copy(), data_colvar.T[pos_cvs_col[1]].copy()
+    
+    print('reading trajectory in ... ' , end='')
     try:
         if args.topo == None:
             u = mda.Universe(args.traj, in_memory=True)
@@ -290,9 +309,10 @@ if __name__ == '__main__':
             raise Exception('MDAnalysis does not support the topology- or trajectory-file')
     except FileNotFoundError:
         raise
-
+    print('done')
+    
     all_points = [shapely.geometry.Point(a[i],b[i]) for i in range(len(a))]        
-    grouped_points = group_numbers(outline, 10*np.sqrt(8)*tolerance)
+    grouped_points = group_numbers(outline, 6*np.sqrt(8)*tolerance)
 
     start1 = time.perf_counter()
     try:
@@ -306,11 +326,11 @@ if __name__ == '__main__':
     if edge:
         edge_points, pbc = [], []
         grouped_edges = group_numbers(edge, 10*np.sqrt(8)*tolerance)
-        for i,group1 in enumerate(grouped_edges):
+        for i in tqdm.tqdm(range(len(grouped_edges)), desc='checking periodicity', leave=False):
             if sum(list(map(len, pbc))) >= len(grouped_edges):
                 break
             expect_group, tmp_lst = [], []
-            for elem in group1:
+            for elem in grouped_edges[i]:
                 tmp_pt = copy.deepcopy(elem)
                 if elem[0] == high_max_a:
                     tmp_pt[0] = low_max_a
@@ -323,7 +343,7 @@ if __name__ == '__main__':
                 expect_group.append(tmp_pt)
             found_periodic = False
             for j,group2 in enumerate(grouped_points):
-                if have_common_elem(group2, expect_group) or have_common_elem(group2, group1):
+                if have_common_elem(group2, expect_group) or have_common_elem(group2, grouped_edges[i]):
                     periodicity = True
                     found_periodic = True
                     tmp_lst.append(j)
@@ -346,7 +366,7 @@ if __name__ == '__main__':
         usable_cpu = len(polygons)
     manager = mp.Manager()
     mp_sorted_coords = manager.list()
-    with mp.Pool(processes=usable_cpu, initializer=init_polygon, initargs=(all_points, tolerance, mp_sorted_coords, mp.RLock(),)) as pool:
+    with mp.Pool(processes=usable_cpu, initializer=init_polygon, initargs=(all_points, tolerance, mp_sorted_coords,polygons,a,b, mp.RLock(),)) as pool:
         pool.map(det_min_frames, range(len(polygons)))
     sorted_coords = list(mp_sorted_coords)
     for lists in sorted_coords:
@@ -359,7 +379,7 @@ if __name__ == '__main__':
     if periodicity == True:
         sorted_coords_period, tot_pbc  = [], []
         for elem in pbc:
-            desc.append(' + '.join((fes_var.split(' ')[pos_cvs_fes[0]+2] + ': ' + str(round(np.mean(grouped_points[j], axis=0)[0],4)) + ' '+fes_var.split(' ')[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[j], axis=0)[1],4))) for j in elem))
+            desc.append(' + '.join((fes_var[pos_cvs_fes[0]+2] + ': ' + str(round(np.mean(grouped_points[j], axis=0)[0],4)) + ' '+fes_var[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[j], axis=0)[1],4))) for j in elem))
             help_list = []
             for i in elem:
                 tot_pbc.append(i)
@@ -367,7 +387,7 @@ if __name__ == '__main__':
             sorted_coords_period.append(help_list)
         for i,elem in enumerate(sorted_coords):
             if not i in tot_pbc:
-                desc.append(fes_var.split(' ')[pos_cvs_fes[0]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var.split(' ')[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)))
+                desc.append(fes_var[pos_cvs_fes[0]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)))
                 sorted_coords_period.append(elem)
         sorted_coords = sorted_coords_period
         print(str(len(sorted_coords)) + ' minima identified')
@@ -384,16 +404,21 @@ if __name__ == '__main__':
     
     if args.fes_png == True:
         bins = np.empty((dimY,dimX))
-        for i in range(dimY):
-            for l in range(dimX):
-                bins[-1-i,l] = ener[next(count2)]
+        if b_central == True:
+            for i in range(dimY):
+                for j in range(dimX):
+                    bins[-1-i,j] = ener[next(count2)]
+        else:
+            for i in range(dimX):
+                for j in range(dimY):
+                    bins[-1-j,i] = ener[next(count2)]
     
         plt.figure(figsize=(8,6), dpi=300)
         plt.imshow(bins, interpolation='gaussian', cmap='nipy_spectral')
         plt.xticks(np.linspace(-0.5,dimX-0.5,5),np.round(np.linspace(low_max_a,high_max_a, num=5),3))
         plt.yticks(np.linspace(-0.5,dimY-0.5,5),np.round(np.linspace(high_max_b,low_max_b, num=5),3))
-        plt.xlabel(fes_var.split(' ')[pos_cvs_fes[0]+2] + ' [a.U.]')
-        plt.ylabel(fes_var.split(' ')[pos_cvs_fes[1]+2] + ' [a.U.]')
+        plt.xlabel(fes_var[pos_cvs_fes[0]+2] + ' [a.U.]')
+        plt.ylabel(fes_var[pos_cvs_fes[1]+2] + ' [a.U.]')
         plt.axis('tight')
         plt.title('threshold: ' + str(round(thresh_val,3)) + ' a.U.')
         plt.plot(outline_show_a, outline_show_b, '.', color='white', markersize=2)
@@ -410,7 +435,7 @@ if __name__ == '__main__':
     
     start3 = time.perf_counter()
     try:
-        pool = mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_coords,ab_tuple,u,ag,desc,len(polygons),mp.RLock(),)) 
+        pool = mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_coords,a,b,u,ag,desc,len(polygons),mp.RLock(),)) 
     except NameError:
         pool = mp.Pool(processes = usable_cpu, initializer=init_worker_pdb, initargs=(sorted_coords,a,b,lines,atom_count,head,desc,len(polygons),mp.RLock(),))
     out = pool.map(sort, range(len(sorted_coords)))
