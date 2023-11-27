@@ -23,7 +23,7 @@ parser.add_argument('-fes', dest='fes', default='fes.dat', help='FES-file name i
 parser.add_argument('-colv', dest='colvar', default='COLVAR', help='COLVAR-file in the MD-output-directory. DEFAULT: "COLVAR".')
 parser.add_argument('-png', dest='fes_png', default=True, help='Specifies whether a PNG-visualization of the FES should be created. Expects True/False. DEFAULT: True.', type=bool)
 parser.add_argument('-nopbc', dest='nopbc', default=False, help='Suppresses the automatic periodicity search (triggered when minima touch the edges). Expects True/False. DEFAULT: False.', type=bool)
-parser.add_argument('-mindist', dest='mindist', default=10, help='Smallest allowed distance at which areas are considered separate minima in bins. Must be larger than 1. DEFAULT: 10.', type=float)
+parser.add_argument('-mindist', dest='mindist', default=10, help='Smallest allowed distance at which areas are considered separate minima (unit: bins of FES-histogram). Must be larger than 1. DEFAULT: 10.', type=float)
 args = parser.parse_args()
 
 def have_common_elem(l1, l2):
