@@ -23,7 +23,8 @@ parser.add_argument('-topo', dest='topo', default=None, help='MD topology-file n
 parser.add_argument('-fes', dest='fes', default='fes.dat', help='FES-file name in the MD-output-directory. DEFAULT: "fes.dat".', type=str)
 parser.add_argument('-colv', dest='colvar', default='COLVAR', help='COLVAR-file in the MD-output-directory. DEFAULT: "COLVAR".')
 parser.add_argument('-png', dest='fes_png', default=True, help='Specifies whether a PNG-visualization of the FES should be created. Expects True/False. DEFAULT: True.', type=bool)
-
+parser.add_argument('-nopbc', dest='nopbc', default=False, help='Suppresses the automatic periodicity search (triggered when minima touch the edges). Expects True/False. DEFAULT: False.', type=bool)
+parser.add_argument('-mindist', dest='mindist', default=10, help='Smallest allowed distance at which areas are considered separate minima in bins. Must be larger than 1. DEFAULT: 10.', type=float)
 args = parser.parse_args()
 
 def init_worker_pdb(sorted_coords,a,b,lines,atom_count,head,desc,num_areas,barargs):
@@ -60,6 +61,10 @@ def init_polygon(all_points,tolerance,mp_sorted_coords,polygons,a,b, barargs):
     Gall_points, Gtolerance, managed_list, Gpolygons, Ga, Gb = all_points, tolerance, mp_sorted_coords, polygons, a, b
     
 def det_min_frames(j):
+    convex_hull = shapely.geometry.Polygon(Gpolygons[j].convex_hull)
+    if abs(1-(convex_hull.area/Gpolygons[j].area)) > 0.2:
+        Gpolygons[j] = convex_hull
+        print('polygon ' + str(j) + ' did not initialise properly, using convex-hull')
     coords = []
     pos1 = mp.current_process()._identity[0]-2
     with tqdm.tqdm(total=len(Gall_points), desc='min ' + str(j), position=pos1, leave=False) as pbar:
@@ -76,56 +81,94 @@ def have_common_elem(l1, l2):
             break
     return False
 
-def group_numbers(numbers, max_diff):
+def group_numbers_ex3(numbers, max_diff):
     separate_groups, subgroup = [], []
     tmplist = copy.deepcopy(numbers)
     seed_elem = tmplist[0]
-    with tqdm.tqdm(total=len(tmplist), desc='grouping outline', leave=False) as pbar:
-        while any(tmplist):  
+    while any(tmplist):
+        min_distance = max_diff
+        found = False
+        try:
+            tmplist.remove(seed_elem)
+            new_group_found = False
+        except ValueError:
+            pass
+        for compare_elem in tmplist:
+            if ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5 < min_distance: 
+                found = True
+                min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
+                min_elem = compare_elem
+        if found == True and any(subgroup):
+            if new_group_found == False:
+                subgroup.append(seed_elem)
+            seed_elem = min_elem   
+        else:
+            if any(subgroup):  
+                separate_groups.append(subgroup)
+            subgroup = []
+            sec_run = False
             min_distance = max_diff
-            found = False
-            try:
-                tmplist.remove(seed_elem)
-                new_group_found = False
-            except ValueError:
-                pass
-            for compare_elem in tmplist: 
-                if ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5 < min_distance: 
-                    found = True
-                    min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
-                    min_elem = compare_elem
-            if found == True and any(subgroup):
-                if new_group_found == False:
-                    subgroup.append(seed_elem)
-                seed_elem = min_elem   
-            else:
-                if any(subgroup):  
-                    separate_groups.append(subgroup)
-                subgroup = []
-                sec_run = False
-                min_distance = max_diff
-                for group in separate_groups:
-                    dists = np.empty(len(group))
-                    for i,elem in enumerate(group):
-                        dists[i] = ((seed_elem[0]-elem[0])**2 + (seed_elem[1]-elem[1])**2)**0.5
-                        if dists[i] < min_distance:
-                            sec_run = True
-                    if sec_run == True:
-                        try:
-                            nih = np.empty(len(dists)-1)
-                            for j in range(len(dists)-1):
-                                    nih[j] = dists[j]+dists[j+1]
-                            group.insert(np.argmin(nih)+1, seed_elem)
-                        except ValueError:
-                            group.append(seed_elem)
-                        break
-                if sec_run == False:
-                    subgroup.append(seed_elem)
-                    new_group_found = True
-                elif any(tmplist):
-                    seed_elem = tmplist[0]
-            pbar.update(1)
-    return separate_groups
+            for group in separate_groups:
+                dists = np.empty(len(group))
+                for i,elem in enumerate(group):
+                    dists[i] = ((seed_elem[0]-elem[0])**2 + (seed_elem[1]-elem[1])**2)**0.5
+                    if dists[i] < min_distance:
+                        sec_run = True
+                if sec_run == True:
+                    try:
+                        nih = np.empty(len(dists)-1)
+                        for j in range(len(dists)-1):
+                                nih[j] = dists[j]+dists[j+1]
+                        group.insert(np.argmin(nih)+1, seed_elem)
+                    except ValueError:
+                        group.append(seed_elem)
+                    break
+            if sec_run == False:
+                subgroup.append(seed_elem)
+                new_group_found = True
+            elif any(tmplist):
+                seed_elem = tmplist[0]
+    
+    connect_groups = []
+    min_distance = max_diff          
+    for g1 in range(0,len(separate_groups)):
+        for g2 in range(g1+1, len(separate_groups)):
+            dists = np.empty(len(separate_groups[g1])*len(separate_groups[g2]))
+            indx = it.count(0)
+            for e1 in separate_groups[g1]:
+                for e2 in separate_groups[g2]:
+                    dists[next(indx)] = (((e1[0]-e2[0])**2+(e1[1]-e2[1])**2)**0.5)
+            if np.min(dists) <= min_distance:
+                connect_groups.append([g1,g2])
+    grouped_connected_groups = []
+    while len(connect_groups)>0:
+        first, *rest = connect_groups
+        first = set(first)
+        lf = -1
+        while len(first)>lf:
+            lf = len(first)
+            rest2 = []
+            for r in rest:
+                if len(first.intersection(set(r)))>0:
+                    first |= set(r)
+                else:
+                    rest2.append(r)     
+            rest = rest2
+        grouped_connected_groups.append(first)
+        connect_groups = rest
+        
+    fin_sep_groups, tot  = [], []
+    for elem in grouped_connected_groups:
+        help_list = []
+        for i in elem:
+            tot.append(i)
+            help_list += separate_groups[i]
+        fin_sep_groups.append(help_list)
+    for i,elem in enumerate(separate_groups):
+        if not i in tot:
+            fin_sep_groups.append(elem)
+        
+    return fin_sep_groups
     
 def sort(i):
     indx_list = []
@@ -133,7 +176,7 @@ def sort(i):
         if Gdesc:
             overviewfile.writelines('min_' + str(i) + ': ' + Gdesc[i] + '\n')
         else:
-            overviewfile.writelines('min_' + str(i) + ': '+ fes_var[pos_cvs_fes[0]+2] +': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var.split(' ')[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
+            overviewfile.writelines('min_' + str(i) + ': '+ fes_var[pos_cvs_fes[0]+2] +': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
     pos = mp.current_process()._identity[0]-2-Gnum_areas
     with tqdm.tqdm(total=len(Gsorted_coords[i]), desc='min ' + str(i) + ': ' + str(len(Gsorted_coords[i])) + ' frames', position=pos, leave=False) as progress_bar:
         for o in range(len(Gsorted_coords[i])):
@@ -214,6 +257,9 @@ if __name__ == '__main__':
     print('           .: Multiprocessing version :.           ')
     print('                                                   ')
     print('working on directory: ' + args.md_dir)
+    if args.mindist <= 1:
+        print('Invalid minimal separation distance specified. Using default.')
+        args.mindist = 10
     outline = []
     count1, count2 = it.count(0), it.count(0)
     thresh_val, tot_min_frames, dimX, dimY = 0, 0, 0, 1
@@ -291,7 +337,7 @@ if __name__ == '__main__':
     data_colvar = np.genfromtxt(args.colvar)
     a, b = data_colvar.T[pos_cvs_col[0]].copy(), data_colvar.T[pos_cvs_col[1]].copy()
     
-    print('reading trajectory in ... ' , end='')
+    print('reading trajectory in ... ' , end='', flush=True)
     try:
         if args.topo == None:
             u = mda.Universe(args.traj, in_memory=True)
@@ -306,13 +352,15 @@ if __name__ == '__main__':
             if not (len(lines)-head)/(atom_count+3) == len(a):
                 raise Exception('COLVAR-file and trajectory-file must have similar step length, here: ' + str(len(a)) + ' vs ' + str((len(lines)-head)/(atom_count+3)))
         else:
-            raise Exception('MDAnalysis does not support the topology- or trajectory-file')
+            raise Exception('MDAnalysis does not support this topology- or trajectory-file')
     except FileNotFoundError:
         raise
     print('done')
     
-    all_points = [shapely.geometry.Point(a[i],b[i]) for i in range(len(a))]        
-    grouped_points = group_numbers(outline, 6*np.sqrt(8)*tolerance)
+    all_points = [shapely.geometry.Point(a[i],b[i]) for i in range(len(a))]    
+    start0 = time.perf_counter() 
+    grouped_points = group_numbers_ex3(outline, args.mindist*np.sqrt(8)*tolerance)
+    print('time needed for CCL step: ' + str(round(time.perf_counter() - start0,3)) + ' s')
 
     start1 = time.perf_counter()
     try:
@@ -323,9 +371,9 @@ if __name__ == '__main__':
         grouped_points = clean_gp
     
     periodicity = False
-    if edge:
+    if edge and args.nopbc == False:
         edge_points, pbc = [], []
-        grouped_edges = group_numbers(edge, 10*np.sqrt(8)*tolerance)
+        grouped_edges = group_numbers_ex3(edge, 10*np.sqrt(8)*tolerance)
         for i in tqdm.tqdm(range(len(grouped_edges)), desc='checking periodicity', leave=False):
             if sum(list(map(len, pbc))) >= len(grouped_edges):
                 break
