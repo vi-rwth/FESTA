@@ -176,10 +176,23 @@ def sort_pdb_cp2k_prework():
             head += 1
     return head, atom_count, lines
 
-print('                                                   ')
-print('.: Metadynamics Structure Extraction Tool - MSET :.')
-print('                .: Serial version :.               ')
-print('                                                   ')
+
+title = '.: Metadynamics Structure Extraction Tool - MSET :.'
+variant = '.: Serial version :.'
+termin = '.: terminated successfully :.'
+try:
+    terminal_size = os.get_terminal_size()[0]
+except OSError:
+    terminal_size = len(title)
+print(' '*terminal_size)
+print(' '*int((terminal_size-len(title))/2), end='')
+print(title, end='')
+print(' '*int((terminal_size-len(title))/2))
+print(' '*int((terminal_size-len(variant))/2), end='')
+print(variant, end='')
+print(' '*int((terminal_size-len(variant))/2))
+print(' '*terminal_size)
+
 print('working on directory: ' + args.md_dir)
 if args.mindist <= 1:
     print('Invalid minimal separation distance specified. Using default.')
@@ -232,7 +245,8 @@ if (b_fes[0] == b_fes[1]):
             dimY += 1
             b_count = elem
     high_max_a, high_max_b  = a_fes[dimX-1], b_fes[-1]
-    tolerance = abs(a_fes[0]-a_fes[1])/2
+    tolX = abs(a_fes[0]-a_fes[1])/2
+    tolY = abs(b_fes[0]-b_fes[dimY])/2
 else:
     b_central = False
     while a_fes[next(count1)] == a_fes[0]:
@@ -243,7 +257,8 @@ else:
             dimY += 1
             a_count = elem
     high_max_a, high_max_b  = a_fes[-1], b_fes[dimY-1]
-    tolerance = abs(b_fes[0]-b_fes[1])/2
+    tolX = abs(a_fes[0]-a_fes[dimY])/2
+    tolY = abs(b_fes[0]-b_fes[1])/2
 low_max_a, low_max_b = a_fes[0], b_fes[0]
 
 outline_show_a, outline_show_b, edge = [], [], []
@@ -285,7 +300,7 @@ print('done')
 all_points = [shapely.geometry.Point(a[i],b[i]) for i in range(len(a))]
 
 start0 = time.perf_counter() 
-grouped_points = group_numbers_ex3(outline, args.mindist*np.sqrt(8)*tolerance)
+grouped_points = group_numbers_ex3(outline, args.mindist*2*np.sqrt(tolX**2+tolY**2))
 print('time needed for CCL step: ' + str(round(time.perf_counter() - start0,3)) + ' s')
 start1 = time.perf_counter()
 try:
@@ -298,7 +313,7 @@ except ValueError:
 periodicity = False    
 if edge and args.nopbc == False:
     edge_points, pbc = [], []
-    grouped_edges = group_numbers_ex3(edge, 10*np.sqrt(8)*tolerance)
+    grouped_edges = group_numbers_ex3(edge, 10*2*np.sqrt(tolX**2+tolY**2))
     for i in tqdm.tqdm(range(len(grouped_edges)), desc='checking periodicity', leave=False):
         if sum(list(map(len, pbc))) >= len(grouped_edges):
             break
@@ -333,20 +348,21 @@ if periodicity == True:
 else:
     print('minima identified')
 
-sorted_coords = []    
+sorted_indx = []
 for j,polygon in enumerate(polygons):
     convex_hull = shapely.geometry.Polygon(polygon.convex_hull)
-    if abs(1-(convex_hull.area/polygon.area)) > 0.2:
+    if abs(1-(polygon.area/convex_hull.area)) > 0.4:
         polygon = convex_hull
         print('polygon ' + str(j) + ' did not initialise properly, using convex-hull')
-    coords = []
+    indxes = []
     with tqdm.tqdm(total=len(all_points), desc='min ' + str(j), leave=False) as pbar:
         for i,point in enumerate(all_points):
-            if polygon.distance(point) <= tolerance:
-                coords.append([a[i],b[i]])
+            if polygon.distance(point) <= np.sqrt(tolY**2+tolX**2):
+                indxes.append(i)
             pbar.update(1)
-    tot_min_frames += len(coords)
-    sorted_coords.append(coords)
+    tot_min_frames += len(indxes)
+    sorted_indx.append(indxes)
+    
 print('processed ' + str(len(a)) + ' frames')
 print('found ' + str(tot_min_frames) + ' minima frames')
 print('time needed for minima frames identification step: ' + str(round(time.perf_counter() - start1,3)) + ' s')
@@ -359,14 +375,14 @@ if periodicity == True:
         help_list = []
         for i in elem:
             tot_pbc.append(i)
-            help_list += sorted_coords[i]
+            help_list += sorted_indx[i]
         sorted_coords_period.append(help_list)
-    for i,elem in enumerate(sorted_coords):
+    for i,elem in enumerate(sorted_indx):
         if not i in tot_pbc:
             desc.append(fes_var[pos_cvs_fes[0]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)))
             sorted_coords_period.append(elem)
-    sorted_coords = sorted_coords_period
-    print(str(len(sorted_coords)) + ' minima identified')
+    sorted_indx = sorted_coords_period
+    print(str(len(sorted_indx)) + ' minima identified')
 
 try:
     os.mkdir('minima')
@@ -406,36 +422,31 @@ if args.fes_png == True:
     cb.update_ticks()    
     plt.savefig('fes_visual.png',bbox_inches='tight')
 
-for i,elem in enumerate(sorted_coords):
+for i,elem in enumerate(sorted_indx):
     indx_list = []
     with open('min_overview.txt', 'a') as overviewfile:
         if periodicity == True:
             overviewfile.writelines('min_' + str(i) + ': ' + desc[i] + '\n')
         else:
             overviewfile.writelines('min_' + str(i) + ': '+ fes_var[pos_cvs_fes[0]+2] +': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
-    with tqdm.tqdm(total=len(elem), desc='min ' + str(i) + ': ' + str(len(elem)) + ' frames', leave=False) as progress_bar:
-        for o in range(len(elem)):
-            indx_a = np.where(a==sorted_coords[i][o][0])[0]
-            indx_b = np.where(b==sorted_coords[i][o][1])[0]
-            both = set(indx_a).intersection(indx_b)
-            indx = both.pop()
-            indx_list.append(indx)
-            progress_bar.update(1)
     try:
-        ag.write('min_' + str(i) + '.' + args.traj.split('.')[1], frames=univ.trajectory[indx_list])
+        ag.write('min_' + str(i) + '.' + args.traj.split('.')[1], frames=univ.trajectory[elem])
     except (IndexError, NameError):
         if args.traj.endswith('.pdb'):
             tempfile = open('min_' + str(i) + '.pdb', 'w')
             ref_point = [0,0,0]
-            for o,elem_inner in enumerate(indx_list):
+            for o,elem_inner in enumerate(elem):
                 ref_point = sort_pdb_cp2k(o,elem_inner, ref_point)
             tempfile.close()
         else:
             raise Exception('Multiple frames are not supported with this trajectory-format')
     except (TypeError, ValueError):
         print('MDAnalysis does not support writing in ' + args.traj.split('.')[1] + '-format, writing in xyz-format instead')
-        ag.write('min_' + str(i) + '.xyz', frames=univ.trajectory[indx_list])
+        ag.write('min_' + str(i) + '.xyz', frames=univ.trajectory[elem])
             
 print('time needed for postprocessing step: ' + str(round(time.perf_counter() - start3,3)) + ' s')
-print('                                                   ')
-print('           .: terminated successfully :.           ')
+
+print(' '*terminal_size)
+print(' '*int((terminal_size-len(termin))/2), end='')
+print(termin, end='')
+print(' '*int((terminal_size-len(termin))/2))
