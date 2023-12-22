@@ -6,14 +6,16 @@ import shapely.geometry
 import copy
 import tqdm
 import multiprocessing as mp
-import MDAnalysis as mda
 import matplotlib.pyplot as plt
 from matplotlib import ticker
 import operator as op
 import shutil
+import psutil
 import warnings
 import argparse
-warnings.filterwarnings('ignore')
+import MDAnalysis as mda
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+
 parser = argparse.ArgumentParser()
 
 parser.add_argument('-traj', dest='traj', required=True, help='!REQUIRED! MD trajectory-file name in the MD-output-directory. Format is also used for output-files.', type=str)
@@ -28,20 +30,20 @@ parser.add_argument('-mindist', dest='mindist', default=10, help='Smallest allow
 
 args = parser.parse_args()
 
-def init_worker_pdb(sorted_indx,lines,atom_count,head,desc):
-    global Gsorted_indx
-    global Gatom_count
-    global Ghead
-    global Glines
-    global Gdesc
-    Gatom_count, Ghead, Glines, Gdesc, Gsorted_indx = atom_count, head, lines, desc, sorted_indx
+def init_worker_pdb(Gsorted_indx,Glines,Gatom_count,Ghead,Gdesc):
+    global sorted_indx
+    global atom_count
+    global head
+    global lines
+    global desc
+    atom_count, head, lines, desc, sorted_indx = Gatom_count, Ghead, Glines, Gdesc, Gsorted_indx
 
-def init_worker(sorted_indx, u,ag,desc):
-    global Gsorted_indx
-    global Gu
-    global Gag
-    global Gdesc
-    Gsorted_indx, Gu, Gag, Gdesc = sorted_indx, u, ag, desc
+def init_worker(Gsorted_indx, Gu,Gag,Gdesc):
+    global sorted_indx
+    global u
+    global ag
+    global desc
+    sorted_indx, u, ag, desc = Gsorted_indx, Gu, Gag, Gdesc
     
 def init_polygon(all_points,tolerance,mp_sorted_coords,polygons, barargs):
     tqdm.tqdm.set_lock(barargs)
@@ -163,50 +165,50 @@ def group_numbers_ex3(numbers, max_diff):
     
 def sort(i):
     with open('min_overview.txt', 'a') as overviewfile:
-        if Gdesc:
-            overviewfile.writelines('min_' + str(i) + ': ' + Gdesc[i] + '\n')
+        if desc:
+            overviewfile.writelines('min_' + str(i) + ': ' + desc[i] + '\n')
         else:
             overviewfile.writelines('min_' + str(i) + ': '+ fes_var[pos_cvs_fes[0]+2] +': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
     try:
-        Gag.write('min_' + str(i) + '.' + args.traj.split('.')[1], frames=Gu.trajectory[Gsorted_indx[i]])
+        ag.write('min_' + str(i) + '.' + args.traj.split('.')[1], frames=u.trajectory[sorted_indx[i]])
     except (TypeError, ValueError):
         print('MDAnalysis does not support writing in ' + args.traj.split('.')[1] + '-format, writing in xyz-format instead')
-        Gag.write('min_' + str(i) + '.xyz', frames=Gu.trajectory[Gsorted_indx[i]])
+        ag.write('min_' + str(i) + '.xyz', frames=u.trajectory[sorted_indx[i]])
         
 def sort_pdb_cp2k(i):
     with open('min_overview.txt', 'a') as overviewfile:
-        if Gdesc:
-            overviewfile.writelines('min_' + str(i) + ': ' + Gdesc[i] + '\n')
+        if desc:
+            overviewfile.writelines('min_' + str(i) + ': ' + desc[i] + '\n')
         else:
             overviewfile.writelines('min_' + str(i) + ': '+ fes_var[pos_cvs_fes[0]+2] +': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
     tempfile = open('min_' + str(i) + '.pdb', 'w')
     ref_point = [0,0,0]
-    for o,elem_inner in enumerate(Gsorted_indx[i]):
+    for o,elem_inner in enumerate(sorted_indx[i]):
         min_coords, shift_vect, print_out = [], [0,0,0], []
         count = it.count(0)
-        for k in range(Ghead+(elem_inner*(Gatom_count+3)), Ghead+((elem_inner+1)*(Gatom_count+3))):
-            if Glines[k].startswith('ATOM'):
+        for k in range(head+(elem_inner*(atom_count+3)), head+((elem_inner+1)*(atom_count+3))):
+            if lines[k].startswith('ATOM'):
                 tmp_count = next(count)
                 print_lines = []
-                str_part_1 = Glines[k].split('                 ')[0]
-                str_part_2 = Glines[k].split('0.00  0.00')[1]
-                if not len(" ".join(Glines[k].split()).split(' ')) < 9:
-                    atom_coords =[float(" ".join(Glines[k].split()).split(' ')[3]),float(" ".join(Glines[k].split()).split(' ')[4]),float(" ".join(Glines[k].split()).split(' ')[5])]
+                str_part_1 = lines[k].split('                 ')[0]
+                str_part_2 = lines[k].split('0.00  0.00')[1]
+                if not len(" ".join(lines[k].split()).split(' ')) < 9:
+                    atom_coords =[float(" ".join(lines[k].split()).split(' ')[3]),float(" ".join(lines[k].split()).split(' ')[4]),float(" ".join(lines[k].split()).split(' ')[5])]
                 else:
-                    if len(" ".join(Glines[k].split()).split(' ')[3]) > 8:
-                        tmp_str = " ".join(Glines[k].split()).split(' ')[3].split('-')
+                    if len(" ".join(lines[k].split()).split(' ')[3]) > 8:
+                        tmp_str = " ".join(lines[k].split()).split(' ')[3].split('-')
                         if len(tmp_str) == 2:
-                            atom_coords = [float(tmp_str[0]),float(tmp_str[1])*(-1),float(" ".join(Glines[k].split()).split(' ')[4])]
+                            atom_coords = [float(tmp_str[0]),float(tmp_str[1])*(-1),float(" ".join(lines[k].split()).split(' ')[4])]
                         elif len(tmp_str) == 4:
                             atom_coords = [float(tmp_str[1])*(-1),float(tmp_str[2])*(-1),float(tmp_str[3])*(-1)]
                         else:
                             if len(tmp_str[0]) == 0:
-                                atom_coords = [float(tmp_str[1])*(-1),float(tmp_str[2])*(-1),float(" ".join(Glines[k].split()).split(' ')[4])]
+                                atom_coords = [float(tmp_str[1])*(-1),float(tmp_str[2])*(-1),float(" ".join(lines[k].split()).split(' ')[4])]
                             else:
                                 atom_coords = [float(tmp_str[0]),float(tmp_str[1])*(-1),float(tmp_str[2])*(-1)]
-                    elif len(" ".join(Glines[k].split()).split(' ')[4]) > 8:
-                        tmp_str = " ".join(Glines[k].split()).split(' ')[4].split('-')
-                        atom_coords = [float(" ".join(Glines[k].split()).split(' ')[3]),float(tmp_str[0]),float(tmp_str[1])*(-1)]
+                    elif len(" ".join(lines[k].split()).split(' ')[4]) > 8:
+                        tmp_str = " ".join(lines[k].split()).split(' ')[4].split('-')
+                        atom_coords = [float(" ".join(lines[k].split()).split(' ')[3]),float(tmp_str[0]),float(tmp_str[1])*(-1)]
                 if o == 0 and tmp_count == 0:
                     ref_point = atom_coords
                 if not o == 0 and tmp_count == 0:
@@ -214,10 +216,10 @@ def sort_pdb_cp2k(i):
                 min_coords.append((np.array(atom_coords) + np.array(shift_vect)).tolist())
                 print_lines = ''.join((str_part_1,' '*(25-len(str(round(min_coords[tmp_count][0],3)))),str(round(min_coords[tmp_count][0],3)),' '*(8-len(str(round(min_coords[tmp_count][1],3)))),str(round(min_coords[tmp_count][1],3)),' '*(8-len(str(round(min_coords[tmp_count][2],3)))),str(round(min_coords[tmp_count][2],3)),'  0.00  0.00',str_part_2))  
                 print_out.append(print_lines)
-            elif Glines[k].startswith('REMARK'):
-                print_out.append(Glines[k])
-            elif Glines[k].startswith('CRYST1'):
-                print_out.append(Glines[k])                
+            elif lines[k].startswith('REMARK'):
+                print_out.append(lines[k])
+            elif lines[k].startswith('CRYST1'):
+                print_out.append(lines[k])                
         print_out.append('END\n')           
         tempfile.writelines(print_out) 
     tempfile.close()
@@ -244,12 +246,8 @@ if __name__ == '__main__':
     except OSError:
         terminal_size = len(title)
     print(' '*terminal_size)
-    print(' '*int((terminal_size-len(title))/2), end='')
-    print(title, end='')
-    print(' '*int((terminal_size-len(title))/2))
-    print(' '*int((terminal_size-len(variant))/2), end='')
-    print(variant, end='')
-    print(' '*int((terminal_size-len(variant))/2))
+    print(' '*int((terminal_size-len(title))/2) + title + ' '*int((terminal_size-len(title))/2))
+    print(' '*int((terminal_size-len(variant))/2) + variant + ' '*int((terminal_size-len(variant))/2))
     print(' '*terminal_size)
     print('working on directory: ' + args.md_dir)
     if args.mindist <= 1:
@@ -259,7 +257,8 @@ if __name__ == '__main__':
     count1, count2 = it.count(0), it.count(0)
     thresh_val, tot_min_frames, dimX, dimY = 0, 0, 0, 1
     os.chdir(args.md_dir)
-
+    size_traj = os.path.getsize(args.traj)
+    
     with open(args.colvar, 'r') as colvar_file:
         col_var = colvar_file.readline().split(' ')
         col_var[-1] = col_var[-1][:-1]
@@ -475,22 +474,28 @@ if __name__ == '__main__':
         cb.update_ticks()    
         plt.savefig('fes_visual.png',bbox_inches='tight')
     
-    if len(sorted_indx) > os.cpu_count()-1:
-        usable_cpu = os.cpu_count()-1
-    else:
-        usable_cpu = len(sorted_indx)
-    
     start3 = time.perf_counter()
-    if cp2k_pdb == False:
-        with mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_indx,u,ag,desc,)) as pool:
-            pool.map(sort, range(len(sorted_indx)))
+    if psutil.virtual_memory()[0] > size_traj*len(polygons):
+        if len(sorted_indx) > os.cpu_count()-1:
+            usable_cpu = os.cpu_count()-1
+        else:
+            usable_cpu = len(sorted_indx)
+        
+        if cp2k_pdb == False:
+            with mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_indx,u,ag,desc,)) as pool:
+                pool.map(sort, range(len(sorted_indx)))
+        else:
+            with mp.Pool(processes = usable_cpu, initializer=init_worker_pdb, initargs=(sorted_indx,lines,atom_count,head,desc,)) as pool:
+                pool.map(sort_pdb_cp2k, range(len(sorted_indx)))
     else:
-        with mp.Pool(processes = usable_cpu, initializer=init_worker_pdb, initargs=(sorted_indx,lines,atom_count,head,desc,)) as pool:
-            pool.map(sort_pdb_cp2k, range(len(sorted_indx)))
+        if cp2k_pdb == False:
+            for i in range(len(sorted_indx)):
+                sort(i)
+        else:
+            for i in range(len(sorted_indx)):
+                sort_pdb_cp2k(i)
 
     print(' time needed for postprocessing step: ' + str(round(time.perf_counter() - start3,3)) + ' s')
     
     print(' '*terminal_size)
-    print(' '*int((terminal_size-len(termin))/2), end='')
-    print(termin, end='')
-    print(' '*int((terminal_size-len(termin))/2))
+    print(' '*int((terminal_size-len(termin))/2) + termin + ' '*int((terminal_size-len(termin))/2))
