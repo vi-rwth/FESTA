@@ -4,7 +4,7 @@
 
 The metadynamics run has to be 3-dimensional (exactly 2 collective variables (CVs) + energy). 
 
-The scripts use numpy, os, argparse, shutil, time, itertools, shapely, copy, multiprocessing (only for "parallel" script), MDAnalysis, matplotlib, operator and tqdm modules. These have to be installed before running the scripts.
+The scripts use numpy, os, argparse, shutil, psutil, time, itertools, shapely, copy, multiprocessing (only for "parallel" script), MDAnalysis, matplotlib, operator and tqdm modules. These have to be installed before running the scripts.
 
 The MD-output directory has to include a FES-file, a trajectory-file and a COLVAR-file. The COLVAR- and FES-files are expected to be created using PLUMED or have PLUMED-like appearance.
 The COLVAR- and trajectory-file must have the same MD-step length.
@@ -49,5 +49,4 @@ ONLY (CP2K) PDB: Only x,y,z, atom-type and atom-number columns will be copied fr
 ### Usage advice
 
 It is advised to use FES-histograms with sufficient bins, since the tolerance of the minimum frame identification and mapping of minima depend on the bin quantity.<br>
-The multiprocessing version might show significant use of memory. In case this behavior is problematic for the used machine it is advised to use the serial script or upgrade the memory of the machine.<br>
 The scripts were tested on Windows and Linux. The output may lack certain visuals if used on Windows.
