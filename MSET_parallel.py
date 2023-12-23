@@ -65,7 +65,7 @@ def det_min_frames(j):
             if Gpolygons[j].distance(point) <= Gtolerance:
                 indxes.append(i)
             pbar.update(1)
-        managed_list.append(indxes)
+        managed_list[j] = indxes
 
 def have_common_elem(l1, l2):
     for elem in l2:
@@ -410,8 +410,7 @@ if __name__ == '__main__':
         usable_cpu = os.cpu_count()-1
     else:
         usable_cpu = len(polygons)
-    manager = mp.Manager()
-    mp_sorted_coords = manager.list()
+    mp_sorted_coords = mp.Manager().list([[] for _ in range(len(polygons))])
     with mp.Pool(processes=usable_cpu, initializer=init_polygon, initargs=(all_points, np.sqrt(tolY**2+tolX**2), mp_sorted_coords,polygons,mp.RLock(),)) as pool:
         pool.map(det_min_frames, range(len(polygons)))
     sorted_indx = list(mp_sorted_coords)
