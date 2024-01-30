@@ -2,16 +2,16 @@
 
 ### Requirements
 
-The metadynamics run has to be 3-dimensional (exactly 2 collective variables (CVs) + energy). 
+The metadynamics run must be 3-dimensional (exactly 2 collective variables (CVs) + energy). 
 
 The scripts use numpy, os, argparse, shutil, psutil, time, itertools, shapely, copy, multiprocessing (only for "parallel" script), MDAnalysis, matplotlib, operator and tqdm modules. These have to be installed before running the scripts.
 
-The MD-output directory has to include a FES-file, a trajectory-file and a COLVAR-file. The COLVAR- and FES-files are expected to be created using PLUMED or have PLUMED-like appearance.
+The MD-output directory must include a FES-file, a trajectory-file and a COLVAR-file. The COLVAR- and FES-files are expected to be created using PLUMED or have PLUMED-like appearance.
 The COLVAR- and trajectory-file must have the same MD-step length.
 
 Most trajectory-formats supported by MDAnalysis are supported here as well. For a complete list see:<br>
 https://docs.mdanalysis.org/stable/documentation_pages/coordinates/init.html#id2 <br>
-Trajectory-formats must have multiframe capabilities. If the trajectory-file does not offer topological information, a separate topology-file has to be provided.<br>
+Trajectory-formats must have multiframe capabilities. If the trajectory-file does not offer topological information, a separate topology-file must be provided.<br>
 Verified NOT SUPPORTED formats are: PDBQT, PQR, MMTF, NAMDBIN, IN, FHAIMS, COOR, CRD, GRO.<br>
 Verified SUPPORTED formats are: ARC, DCD, ENT, GMS, H5MD, LAMMPS, MOL2, NC, NCDF, PDB, TRJ, TRR, TRZ, XTC, XYZ.<br>
 
@@ -23,7 +23,7 @@ Use "-h" command to access this explanation from the script.<br>
                REQUIRED FOR RUNNING SCRIPT<br>
 "-md"      --- MD-output-directory path.<br>
                DEFAULT: Current directory path.<br>
-"-thresh"  --- Specifies threshold for assigning. Input value has to correspond with values in the FES-file.<br>
+"-thresh"  --- Specifies threshold for assigning. Input value must correspond with values in the FES-file.<br>
                DEFAULT: Lowest 1/12 of the total energy span.<br>
 "-topo"    --- MD topology-file name in the MD-output-directory, if trajectory-file does not specify topology.<br>
                DEFAULT: None.<br>
