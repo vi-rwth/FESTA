@@ -37,6 +37,8 @@ Use "-h" command to access this explanation from the script.<br>
                DEFAULT: False.<br>
 "-mindist" --- Smallest allowed distance, at which areas are considered separate minima (unit: bins of FES-histogram). Must be larger than 1.<br>
                DEFAULT: 10.<br>
+"-stride"  --- Reads only every n-th frame of trajectory.<br>
+               DEFAULT: 1.<br>
 </pre>
 ### Created files
 
