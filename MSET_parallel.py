@@ -43,12 +43,15 @@ def init_worker_pdb(Gsorted_indx,Glines,Gatom_count,Ghead,Gdesc,Gfes_var, Gpos_c
     global grouped_points
     atom_count, head, lines, desc, sorted_indx, fes_var, pos_cvs_fes, grouped_points = Gatom_count, Ghead, Glines, Gdesc, Gsorted_indx, Gfes_var, Gpos_cvs_fes, Ggrouped_points
 
-def init_worker(Gsorted_indx, Gu,Gag,Gdesc):
+def init_worker(Gsorted_indx, Gu,Gag,Gdesc,Gfes_var, Gpos_cvs_fes, Ggrouped_points):
     global sorted_indx
     global u
     global ag
     global desc
-    sorted_indx, u, ag, desc = Gsorted_indx, Gu, Gag, Gdesc
+    global fes_var
+    global pos_cvs_fes
+    global grouped_points
+    sorted_indx, u, ag, desc, fes_var, pos_cvs_fes, grouped_points = Gsorted_indx, Gu, Gag, Gdesc, Gfes_var, Gpos_cvs_fes, Ggrouped_points
     
 def init_polygon(all_points,tolerance,mp_sorted_coords,polygons, barargs):
     tqdm.tqdm.set_lock(barargs)
@@ -496,7 +499,7 @@ if __name__ == '__main__':
             usable_cpu = len(sorted_indx)
         
         if cp2k_pdb == False:
-            with mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_indx,u,ag,desc,)) as pool:
+            with mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_indx,u,ag,desc,fes_var,pos_cvs_fes,grouped_points,)) as pool:
                 pool.map(sort, range(len(sorted_indx)))
         else:
             with mp.Pool(processes = usable_cpu, initializer=init_worker_pdb, initargs=(sorted_indx,lines,atom_count,head,desc,fes_var,pos_cvs_fes,grouped_points,)) as pool:
