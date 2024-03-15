@@ -12,7 +12,10 @@ from matplotlib import ticker
 import operator as op
 import shutil
 import warnings
-warnings.filterwarnings('ignore')
+
+warnings.filterwarnings("ignore",category=DeprecationWarning)
+warnings.filterwarnings("ignore",category=UserWarning)
+    
 parser = argparse.ArgumentParser()
 
 parser.add_argument('-traj', dest='traj', required=True, help='!REQUIRED! MD trajectory-file name in the MD-output-directory. Format is also used for output-files.', type=str)
@@ -24,6 +27,8 @@ parser.add_argument('-colv', dest='colvar', default='COLVAR', help='COLVAR-file 
 parser.add_argument('-png', dest='fes_png', default=True, help='Specifies whether a PNG-visualization of the FES should be created. Expects True/False. DEFAULT: True.', type=bool)
 parser.add_argument('-nopbc', dest='nopbc', default=False, help='Suppresses the automatic periodicity search (triggered when minima touch the edges). Expects True/False. DEFAULT: False.', type=bool)
 parser.add_argument('-mindist', dest='mindist', default=10, help='Smallest allowed distance at which areas are considered separate minima (unit: bins of FES-histogram). Must be larger than 1. DEFAULT: 10.', type=float)
+parser.add_argument('-stride', dest='stride', default=1, help='Reads only every n-th frame of trajectory. DEFAULT: 1.', type=int)
+
 args = parser.parse_args()
 
 def have_common_elem(l1, l2):
@@ -174,6 +179,15 @@ def sort_pdb_cp2k_prework():
             break
         elif line.startswith('AUTHOR') or line.startswith('TITLE'):
             head += 1
+    if args.stride > 1:
+        trunc_lines = []
+        for i in range(head+atom_count+3):
+            trunc_lines.append(lines[i])
+        for l in range(head+atom_count+2,len(lines),atom_count+3):
+            if l % args.stride == 0:
+                for i in range(atom_count+3):
+                    trunc_lines.append(lines[l+i])
+        lines = trunc_lines
     return head, atom_count, lines
 
 
@@ -275,14 +289,14 @@ for i in tqdm.tqdm(range(len(ener)),desc='collecting outline', leave=False):
         pass
   
 data_colvar = np.genfromtxt(args.colvar)
-a, b = data_colvar.T[pos_cvs_col[0]].copy(), data_colvar.T[pos_cvs_col[1]].copy()
+a, b = data_colvar.T[pos_cvs_col[0]].copy()[0::args.stride], data_colvar.T[pos_cvs_col[1]].copy()[0::args.stride]
 
 print('reading trajectory in ... ' , end='', flush=True)
 try:
     if args.topo == None:
-        univ = mda.Universe(args.traj, in_memory=True)
+        univ = mda.Universe(args.traj, in_memory=True, in_memory_step=args.stride)
     else:
-        univ = mda.Universe(args.topo, args.traj, in_memory=True)
+        univ = mda.Universe(args.topo, args.traj, in_memory=True, in_memory_step=args.stride)
     ag =univ.select_atoms('all')
     if not len(univ.trajectory) == len(a):
         raise Exception('COLVAR-file and trajectory-file must have similar step length, here: ' + str(len(a)) + ' vs ' + str(len(univ.trajectory)))
