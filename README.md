@@ -1,19 +1,35 @@
 # Metadynamics Structure Extraction Tool (MSET)
 
+The goal of this project is to provide a helpful tool for fast and accurate extraction of trajectory frames from 2D metadynamics simulations, by identifying minima based on a free-energy threshold set by the user.
+
+## Before running the script
+
 ### Requirements
 
-The metadynamics run must be 3-dimensional (exactly 2 collective variables (CVs) + energy). 
+- Metadynamics simulation with 2 collective variables
+- single output directory with:
+    +  Free-Energy-Surface (FES) histogram file
+    +  COLVAR file
+    +  Trajectory file
+    +  Topology file (_if no topology information in trajectory file_)
 
-The scripts use numpy, os, argparse, shutil, psutil, time, itertools, shapely, copy, multiprocessing (only for "parallel" script), MDAnalysis, matplotlib, operator and tqdm modules. These have to be installed before running the scripts.
+### Formats
 
-The MD-output directory must include a FES-file, a trajectory-file and a COLVAR-file. The COLVAR- and FES-files are expected to be created using PLUMED or have PLUMED-like appearance.
-The COLVAR- and trajectory-file must have the same MD-step length.
+- PLUMED-like appearence expected for COLVAR- and FES-files <br>
+- Multiframe capable trajectory, supported by MDAnalysis. Complete list: <br>
+  https://docs.mdanalysis.org/stable/documentation_pages/coordinates/init.html#id2 <br>
+  **Not Supported:** PDBQT, PQR, MMTF, NAMDBIN, IN, FHAIMS, COOR, CRD, GRO
 
-Most trajectory-formats supported by MDAnalysis are supported here as well. For a complete list see:<br>
-https://docs.mdanalysis.org/stable/documentation_pages/coordinates/init.html#id2 <br>
-Trajectory-formats must have multiframe capabilities. If the trajectory-file does not offer topological information, a separate topology-file must be provided.<br>
-Verified NOT SUPPORTED formats are: PDBQT, PQR, MMTF, NAMDBIN, IN, FHAIMS, COOR, CRD, GRO.<br>
-Verified SUPPORTED formats are: ARC, DCD, ENT, GMS, H5MD, LAMMPS, MOL2, NC, NCDF, PDB, TRJ, TRR, TRZ, XTC, XYZ.<br>
+### Installation
+
+The following libraries have to be manually installed (e.g. using `pip`):
+
+- numpy
+- psutil
+- tqdm
+- matplotlib
+- shapely
+- MDAnalysis
 
 ### Input parameters
 
