@@ -294,7 +294,10 @@ a, b = data_colvar.T[pos_cvs_col[0]].copy()[0::args.stride], data_colvar.T[pos_c
 print('reading trajectory in ... ' , end='', flush=True)
 try:
     if args.topo == None:
-        univ = mda.Universe(args.traj, in_memory=True, in_memory_step=args.stride)
+        if args.traj.split('.')[-1] == 'lammpstrj':
+            univ = mda.Universe(args.traj, topology_format='LAMMPSDUMP', in_memory=True, in_memory_step=args.stride)
+        else:
+            univ = mda.Universe(args.traj, in_memory=True, in_memory_step=args.stride)
     else:
         univ = mda.Universe(args.topo, args.traj, in_memory=True, in_memory_step=args.stride)
     ag =univ.select_atoms('all')
@@ -444,7 +447,7 @@ for i,elem in enumerate(sorted_indx):
         else:
             overviewfile.writelines('min_' + str(i) + ': '+ fes_var[pos_cvs_fes[0]+2] +': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
     try:
-        ag.write('min_' + str(i) + '.' + args.traj.split('.')[1], frames=univ.trajectory[elem])
+        ag.write('min_' + str(i) + '.' + args.traj.split('.')[-1], frames=univ.trajectory[elem])
     except (IndexError, NameError):
         if args.traj.endswith('.pdb'):
             tempfile = open('min_' + str(i) + '.pdb', 'w')
@@ -455,7 +458,7 @@ for i,elem in enumerate(sorted_indx):
         else:
             raise Exception('Multiple frames are not supported with this trajectory-format')
     except (TypeError, ValueError):
-        print('MDAnalysis does not support writing in ' + args.traj.split('.')[1] + '-format, writing in xyz-format instead')
+        print('MDAnalysis does not support writing in ' + args.traj.split('.')[-1] + '-format, writing in xyz-format instead')
         ag.write('min_' + str(i) + '.xyz', frames=univ.trajectory[elem])
             
 print('time needed for postprocessing step: ' + str(round(time.perf_counter() - start3,3)) + ' s')
