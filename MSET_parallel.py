@@ -178,9 +178,9 @@ def sort(i):
         else:
             overviewfile.writelines('min_' + str(i) + ': '+ fes_var[pos_cvs_fes[0]+2] +': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
     try:
-        ag.write('min_' + str(i) + '.' + args.traj.split('.')[1], frames=u.trajectory[sorted_indx[i]])
+        ag.write('min_' + str(i) + '.' + args.traj.split('.')[-1], frames=u.trajectory[sorted_indx[i]])
     except (TypeError, ValueError):
-        print('MDAnalysis does not support writing in ' + args.traj.split('.')[1] + '-format, writing in xyz-format instead')
+        print('MDAnalysis does not support writing in ' + args.traj.split('.')[-1] + '-format, writing in xyz-format instead')
         ag.write('min_' + str(i) + '.xyz', frames=u.trajectory[sorted_indx[i]])
         
 def sort_pdb_cp2k(i):
@@ -355,7 +355,10 @@ if __name__ == '__main__':
     cp2k_pdb = False
     try:
         if args.topo == None:
-            u = mda.Universe(args.traj, in_memory=True, in_memory_step=args.stride)
+            if args.traj.split('.')[-1] == 'lammpstrj':
+                u = mda.Universe(args.traj, topology_format='LAMMPSDUMP', in_memory=True, in_memory_step=args.stride)
+            else:
+                u = mda.Universe(args.traj, in_memory=True, in_memory_step=args.stride)
         else:
             u = mda.Universe(args.topo, args.traj, in_memory=True, in_memory_step=args.stride)
         ag =u.select_atoms('all')
