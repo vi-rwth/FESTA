@@ -22,7 +22,7 @@ The goal of this project is to provide a helpful tool for fast and accurate extr
 
 ### Installation
 
-The following libraries have to be manually installed (e.g. using `pip`):
+The following libraries must be manually installed (e.g. using `pip`):
 
 - numpy
 - psutil
@@ -30,6 +30,8 @@ The following libraries have to be manually installed (e.g. using `pip`):
 - matplotlib
 - shapely
 - MDAnalysis
+
+## Running the script
 
 ### Input parameters
 
@@ -58,13 +60,19 @@ Use "-h" command to access this explanation from the script.<br>
 </pre>
 ### Created files
 
-The minimum frames will be printed in (for each distinctive minimum) separate trajectory-files inside the MD-output directory in a "minima" directory. The format will be chosen based on the trajectory-file format. If not declared otherwise, the minima directory will contain a FES-visualization PNG-file with a white outline showing the minima-areas.<br>
-Average CV1 and CV2 for each minimum will be printed in a separate "min_overview.txt"-file inside the "minima" directory.<br>
-Periodicity will be detected and considered automatically, if not declared otherwise.<br>
-ONLY (CP2K) PDB: Structure will be fixed in the minimum trajectory-file relative to the first atom, avoiding jumps between frames.<br>
-ONLY (CP2K) PDB: Only x,y,z, atom-type and atom-number columns will be copied from the trajectory PDB-file to the minimum PDB-file. Other columns will be filled with zeros.<br>
+- directory "minima" with:
+   + trajectory files (input format or XYZ) for distinctive minima
+   + overview file with average CVs for each minimum
+   + FES PNG-file with white outline highlighting minima areas (_if not declared otherwise_)
 
-### Usage advice
+### Further information
+
+- Periodicity will be detected and considered automatically. (_if not declared otherwise_)
+- PDB-files created with `CP2K` will be handled by separate reader:
+    + Structures will be fixed relative to the first atom, avoiding jumps between frames.
+    + Only x,y,z, atom-type and atom-number columns will be transferred. Other columns will be filled with zeros.
+
+## Usage advice
 
 It is advised to use FES-histograms with sufficient bins, since the tolerance of the minimum frame identification and mapping of minima depend on the bin quantity.<br>
 The scripts were tested on Windows and Linux. The output may lack certain visuals if used on Windows.
