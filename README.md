@@ -1,4 +1,4 @@
-# Metadynamics Structure Extraction Tool (MSET)
+# Free Energy Surface Trajectory Analysis (FESTA)
 
 The goal of this project is to provide a helpful tool for fast and accurate extraction of trajectory frames from 2D metadynamics simulations, by identifying minima based on a free-energy threshold set by the user.
 
