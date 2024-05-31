@@ -191,7 +191,7 @@ def sort_pdb_cp2k_prework():
     return head, atom_count, lines
 
 
-title = '.: Metadynamics Structure Extraction Tool - MSET :.'
+title = '.: Free Energy Surface Trajectory Analysis - FESTA :.'
 variant = '.: Serial version :.'
 termin = '.: terminated successfully :.'
 try:
