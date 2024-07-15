@@ -10,11 +10,10 @@ import matplotlib.pyplot as plt
 from matplotlib import ticker
 import operator as op
 import shutil
-import psutil
 import warnings
 import argparse
 import MDAnalysis as mda
-warnings.filterwarnings('ignore', category=DeprecationWarning)
+
 warnings.filterwarnings('ignore', category=UserWarning)
 
 parser = argparse.ArgumentParser()
@@ -31,27 +30,6 @@ parser.add_argument('-mindist', dest='mindist', default=10, help='Smallest allow
 parser.add_argument('-stride', dest='stride', default=1, help='Reads only every n-th frame of trajectory. DEFAULT: 1.', type=int)
 
 args = parser.parse_args()
-
-def init_worker_pdb(Gsorted_indx,Glines,Gatom_count,Ghead,Gdesc,Gfes_var, Gpos_cvs_fes, Ggrouped_points):
-    global sorted_indx
-    global atom_count
-    global head
-    global lines
-    global desc
-    global fes_var
-    global pos_cvs_fes
-    global grouped_points
-    atom_count, head, lines, desc, sorted_indx, fes_var, pos_cvs_fes, grouped_points = Gatom_count, Ghead, Glines, Gdesc, Gsorted_indx, Gfes_var, Gpos_cvs_fes, Ggrouped_points
-
-def init_worker(Gsorted_indx, Gu,Gag,Gdesc,Gfes_var, Gpos_cvs_fes, Ggrouped_points):
-    global sorted_indx
-    global u
-    global ag
-    global desc
-    global fes_var
-    global pos_cvs_fes
-    global grouped_points
-    sorted_indx, u, ag, desc, fes_var, pos_cvs_fes, grouped_points = Gsorted_indx, Gu, Gag, Gdesc, Gfes_var, Gpos_cvs_fes, Ggrouped_points
     
 def init_polygon(all_points,tolerance,mp_sorted_coords,polygons, barargs):
     tqdm.tqdm.set_lock(barargs)
@@ -61,14 +39,18 @@ def init_polygon(all_points,tolerance,mp_sorted_coords,polygons, barargs):
     global Gpolygons
     Gall_points, Gtolerance, managed_list, Gpolygons = all_points, tolerance, mp_sorted_coords, polygons
     
+def init_worker_pdb(Gsorted_indx, barargs):
+    tqdm.tqdm.set_lock(barargs)
+    global sorted_indx
+    sorted_indx = Gsorted_indx
+    
 def det_min_frames(j):
     convex_hull = shapely.geometry.Polygon(Gpolygons[j].convex_hull)
     if abs(1-(Gpolygons[j].area/convex_hull.area)) > 0.4:
         Gpolygons[j] = convex_hull
         print('polygon ' + str(j) + ' did not initialise properly, using convex-hull')
     indxes = []
-    pos1 = mp.current_process()._identity[0]-2
-    with tqdm.tqdm(total=len(Gall_points), desc='min ' + str(j), position=pos1, leave=False) as pbar:
+    with tqdm.tqdm(total=len(Gall_points), desc='min ' + str(j), position=tqdm.tqdm._get_free_pos()+j, leave=False) as pbar:
         for i,point in enumerate(Gall_points):
             if Gpolygons[j].distance(point) <= Gtolerance:
                 indxes.append(i)
@@ -171,92 +153,50 @@ def group_numbers_ex3(numbers, max_diff):
         
     return fin_sep_groups
     
-def sort(i):
-    with open('min_overview.txt', 'a') as overviewfile:
-        if desc:
-            overviewfile.writelines('min_' + str(i) + ': ' + desc[i] + '\n')
-        else:
-            overviewfile.writelines('min_' + str(i) + ': '+ fes_var[pos_cvs_fes[0]+2] +': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
+def printout(i):
+    if args.stride > 1:
+        sorted_indx[i] = [args.stride*q for q in sorted_indx[i]]
     try:
-        ag.write('min_' + str(i) + '.' + args.traj.split('.')[-1], frames=u.trajectory[sorted_indx[i]])
+        ag.write('minima/min_' + str(i) + '.' + args.traj.split('.')[-1], frames=u.trajectory[sorted_indx[i]])
     except (TypeError, ValueError):
         print('MDAnalysis does not support writing in ' + args.traj.split('.')[-1] + '-format, writing in xyz-format instead')
-        ag.write('min_' + str(i) + '.xyz', frames=u.trajectory[sorted_indx[i]])
+        ag.write('minima/min_' + str(i) + '.xyz', frames=u.trajectory[sorted_indx[i]])
         
-def sort_pdb_cp2k(i):
-    with open('min_overview.txt', 'a') as overviewfile:
-        if desc:
-            overviewfile.writelines('min_' + str(i) + ': ' + desc[i] + '\n')
-        else:
-            overviewfile.writelines('min_' + str(i) + ': '+ fes_var[pos_cvs_fes[0]+2] +': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
-    tempfile = open('min_' + str(i) + '.pdb', 'w')
-    ref_point = [0,0,0]
-    for o,elem_inner in enumerate(sorted_indx[i]):
-        min_coords, shift_vect, print_out = [], [0,0,0], []
-        count = it.count(0)
-        for k in range(head+(elem_inner*(atom_count+3)), head+((elem_inner+1)*(atom_count+3))):
-            if lines[k].startswith('ATOM'):
-                tmp_count = next(count)
-                print_lines = []
-                str_part_1 = lines[k].split('                 ')[0]
-                str_part_2 = lines[k].split('0.00  0.00')[1]
-                if not len(" ".join(lines[k].split()).split(' ')) < 9:
-                    atom_coords =[float(" ".join(lines[k].split()).split(' ')[3]),float(" ".join(lines[k].split()).split(' ')[4]),float(" ".join(lines[k].split()).split(' ')[5])]
-                else:
-                    if len(" ".join(lines[k].split()).split(' ')[3]) > 8:
-                        tmp_str = " ".join(lines[k].split()).split(' ')[3].split('-')
-                        if len(tmp_str) == 2:
-                            atom_coords = [float(tmp_str[0]),float(tmp_str[1])*(-1),float(" ".join(lines[k].split()).split(' ')[4])]
-                        elif len(tmp_str) == 4:
-                            atom_coords = [float(tmp_str[1])*(-1),float(tmp_str[2])*(-1),float(tmp_str[3])*(-1)]
-                        else:
-                            if len(tmp_str[0]) == 0:
-                                atom_coords = [float(tmp_str[1])*(-1),float(tmp_str[2])*(-1),float(" ".join(lines[k].split()).split(' ')[4])]
-                            else:
-                                atom_coords = [float(tmp_str[0]),float(tmp_str[1])*(-1),float(tmp_str[2])*(-1)]
-                    elif len(" ".join(lines[k].split()).split(' ')[4]) > 8:
-                        tmp_str = " ".join(lines[k].split()).split(' ')[4].split('-')
-                        atom_coords = [float(" ".join(lines[k].split()).split(' ')[3]),float(tmp_str[0]),float(tmp_str[1])*(-1)]
-                if o == 0 and tmp_count == 0:
-                    ref_point = atom_coords
-                if not o == 0 and tmp_count == 0:
-                    shift_vect = (np.array(ref_point) - np.array(atom_coords))
-                min_coords.append((np.array(atom_coords) + np.array(shift_vect)).tolist())
-                print_lines = ''.join((str_part_1,' '*(25-len(str(round(min_coords[tmp_count][0],3)))),str(round(min_coords[tmp_count][0],3)),' '*(8-len(str(round(min_coords[tmp_count][1],3)))),str(round(min_coords[tmp_count][1],3)),' '*(8-len(str(round(min_coords[tmp_count][2],3)))),str(round(min_coords[tmp_count][2],3)),'  0.00  0.00',str_part_2))  
-                print_out.append(print_lines)
-            elif lines[k].startswith('REMARK'):
-                print_out.append(lines[k])
-            elif lines[k].startswith('CRYST1'):
-                print_out.append(lines[k])                
-        print_out.append('END\n')           
-        tempfile.writelines(print_out) 
-    tempfile.close()
-        
-def sort_pdb_cp2k_prework():
-    with open(args.traj, 'r+') as f:
-        lines = f.readlines()
-    atom_count, head = 0, 0
-    for line in lines:
-        if line.startswith('ATOM'):
-            atom_count += 1
-        elif line.startswith('END'):
-            break
-        elif line.startswith('AUTHOR') or line.startswith('TITLE'):
-            head += 1
+def printout_pdb_cp2k(i):
     if args.stride > 1:
-        trunc_lines = []
-        for i in range(head+atom_count+3):
-            trunc_lines.append(lines[i])
-        for l in range(head+atom_count+2,len(lines),atom_count+3):
-            if l % args.stride == 0:
-                for i in range(atom_count+3):
-                    trunc_lines.append(lines[l+i])
-        lines = trunc_lines
-    return head, atom_count, lines
+        sorted_indx[i] = [args.stride*q for q in sorted_indx[i]]
+    linecount, printcount = 0, 0
+    with open('minima/min_' + str(i) + '.pdb', 'w') as minfile:
+        with open(args.traj, 'r') as ftraj:
+            with tqdm.tqdm(total=len(sorted_indx[i]), desc='writing min ' + str(i), position=tqdm.tqdm._get_free_pos()+i, leave=False) as pbar:
+                for line in ftraj:
+                    try:
+                        if sorted_indx[i][printcount] == linecount:
+                            minfile.write(line)
+                            if line.startswith('END'):
+                                printcount += 1
+                                pbar.update(1)
+                    except IndexError:
+                        break
+                    if line.startswith('END'):
+                        linecount += 1
+
+def printout_pdb_cp2k_prework():
+    with open(args.traj, 'rb') as bfile:
+        line_count = sum(1 for _ in bfile)
+    with open(args.traj, 'r') as tfile:
+        atom_count, head = 0, 0
+        for line in tfile:
+            if line.startswith('ATOM'):
+                atom_count += 1
+            elif line.startswith('END'):
+                break
+            elif line.startswith('AUTHOR') or line.startswith('TITLE'):
+                head += 1
+    return int((line_count-head)/(atom_count+3))
 
 if __name__ == '__main__':
     title = '.: Free Energy Surface Trajectory Analysis - FESTA :.'
-    variant = '.: Multiprocessing version :.'
     termin = '.: terminated successfully :.'
     try:
         terminal_size = os.get_terminal_size()[0]
@@ -264,7 +204,6 @@ if __name__ == '__main__':
         terminal_size = len(title)
     print(' '*terminal_size)
     print(' '*int((terminal_size-len(title))/2) + title + ' '*int((terminal_size-len(title))/2))
-    print(' '*int((terminal_size-len(variant))/2) + variant + ' '*int((terminal_size-len(variant))/2))
     print(' '*terminal_size)
     print('working on directory: ' + args.md_dir)
     if args.mindist <= 1:
@@ -274,7 +213,6 @@ if __name__ == '__main__':
     count1, count2 = it.count(0), it.count(0)
     thresh_val, tot_min_frames, dimX, dimY = 0, 0, 0, 1
     os.chdir(args.md_dir)
-    size_traj = os.path.getsize(args.traj)
     
     with open(args.colvar, 'r') as colvar_file:
         col_var = colvar_file.readline().split(' ')
@@ -296,8 +234,7 @@ if __name__ == '__main__':
     if not len(pos_cvs_fes) == 2 or not len(pos_cvs_col) == 2:
         raise Exception('Only MD-runs with 2 CVs supported')
     
-    data_fes = np.genfromtxt(args.fes)
-    a_fes, b_fes, ener = data_fes.T[pos_cvs_fes[0]].copy(), data_fes.T[pos_cvs_fes[1]].copy(), data_fes.T[pos_ener].copy()
+    a_fes, b_fes, ener = np.loadtxt(args.fes, unpack=True, usecols=(pos_cvs_fes[0], pos_cvs_fes[1], pos_ener))
     
     for i in range(len(ener)):
         if not np.isfinite(ener[i]):
@@ -348,28 +285,29 @@ if __name__ == '__main__':
         except IndexError:
             pass
     
-    data_colvar = np.genfromtxt(args.colvar)
-    a, b = data_colvar.T[pos_cvs_col[0]].copy()[0::args.stride], data_colvar.T[pos_cvs_col[1]].copy()[0::args.stride]
+    a, b = np.loadtxt(args.colvar, unpack=True, usecols=(pos_cvs_col[0], pos_cvs_col[1]))
+    if args.stride > 1:
+        a, b = a[0::args.stride], b[0::args.stride]
     
     print('reading trajectory in ... ' , end='', flush=True)
     cp2k_pdb = False
     try:
         if args.topo == None:
             if args.traj.split('.')[-1] == 'lammpstrj':
-                u = mda.Universe(args.traj, topology_format='LAMMPSDUMP', in_memory=True, in_memory_step=args.stride)
+                u = mda.Universe(args.traj, topology_format='LAMMPSDUMP')
             else:
-                u = mda.Universe(args.traj, in_memory=True, in_memory_step=args.stride)
+                u = mda.Universe(args.traj)
         else:
-            u = mda.Universe(args.topo, args.traj, in_memory=True, in_memory_step=args.stride)
-        ag =u.select_atoms('all')
-        if not len(u.trajectory) == len(a):
-            raise Exception('COLVAR-file and trajectory-file must have similar step length, here: ' + str(len(a)) + ' vs ' + str(len(u.trajectory)))
+            u = mda.Universe(args.topo, args.traj)
+        ag = u.select_atoms('all')
+        if not int((len(u.trajectory)-1)/args.stride+1) == len(a):
+            raise Exception('COLVAR-file and trajectory-file must have similar step length, here: ' + str(len(a)) + ' vs ' + str(int((len(u.trajectory)-1)/args.stride+1)))
     except IndexError:
         if args.traj.endswith('.pdb'):
-            head, atom_count, lines = sort_pdb_cp2k_prework()
+            frame_count = printout_pdb_cp2k_prework()
             cp2k_pdb = True
-            if not (len(lines)-head)/(atom_count+3) == len(a):
-                raise Exception('COLVAR-file and trajectory-file must have similar step length, here: ' + str(len(a)) + ' vs ' + str((len(lines)-head)/(atom_count+3)))
+            if not int((frame_count-1)/args.stride+1) == len(a):
+                raise Exception('COLVAR-file and trajectory-file must have similar step length, here: ' + str(len(a)) + ' vs ' + str(int((frame_count-1)/args.stride+1)))
         else:
             raise Exception('MDAnalysis does not support this topology- or trajectory-file')
     except FileNotFoundError:
@@ -393,7 +331,7 @@ if __name__ == '__main__':
     if edge and args.nopbc == False:
         edge_points, pbc = [], []
         grouped_edges = group_numbers_ex3(edge, 10*2*np.sqrt(tolX**2+tolY**2))
-        for i in tqdm.tqdm(range(len(grouped_edges)), desc='checking periodicity', leave=False):
+        for i in range(len(grouped_edges)):
             if sum(list(map(len, pbc))) >= len(grouped_edges):
                 break
             expect_group, tmp_lst = [], []
@@ -437,7 +375,7 @@ if __name__ == '__main__':
     sorted_indx = list(mp_sorted_coords)
     for lists in sorted_indx:
         tot_min_frames += len(lists)
-    print(' processed ' + str(len(a)) + ' frames')
+    print('processed ' + str(len(a)) + ' frames')
     print('found ' + str(tot_min_frames) + ' minima frames')
     print('time needed for minima frames identification step: ' + str(round(time.perf_counter() - start1,3)) + ' s')
     
@@ -450,6 +388,8 @@ if __name__ == '__main__':
             for i in elem:
                 tot_pbc.append(i)
                 help_list += sorted_indx[i]
+            if cp2k_pdb == True:
+                help_list.sort()
             sorted_coords_period.append(help_list)
         for i,elem in enumerate(sorted_indx):
             if not i in tot_pbc:
@@ -457,17 +397,13 @@ if __name__ == '__main__':
                 sorted_coords_period.append(elem)
         sorted_indx = sorted_coords_period
         print(str(len(sorted_indx)) + ' minima identified')
-
+    
     try:
         os.mkdir('minima')
     except FileExistsError:
         shutil.rmtree('minima')
         os.mkdir('minima')
-    
-    os.chdir('minima')
-    with open('min_overview.txt', 'w') as overviewfile:
-        pass
-    
+
     if args.fes_png == True:
         bins = np.empty((dimY,dimX))
         if b_central == True:
@@ -492,30 +428,22 @@ if __name__ == '__main__':
         tick_locator = ticker.MaxNLocator(nbins=8)
         cb.locator = tick_locator
         cb.update_ticks()    
-        plt.savefig('fes_visual.png',bbox_inches='tight')
+        plt.savefig('minima/fes_visual.png',bbox_inches='tight')
     
     start3 = time.perf_counter()
-    if psutil.virtual_memory()[0] > size_traj*len(polygons):
-        if len(sorted_indx) > os.cpu_count()-1:
-            usable_cpu = os.cpu_count()-1
-        else:
-            usable_cpu = len(sorted_indx)
-        
-        if cp2k_pdb == False:
-            with mp.Pool(processes = usable_cpu, initializer=init_worker, initargs=(sorted_indx,u,ag,desc,fes_var,pos_cvs_fes,grouped_points,)) as pool:
-                pool.map(sort, range(len(sorted_indx)))
-        else:
-            with mp.Pool(processes = usable_cpu, initializer=init_worker_pdb, initargs=(sorted_indx,lines,atom_count,head,desc,fes_var,pos_cvs_fes,grouped_points,)) as pool:
-                pool.map(sort_pdb_cp2k, range(len(sorted_indx)))
+    with open('minima/min_overview.txt', 'w') as overviewfile:
+        for i in range(len(sorted_indx)):
+            if desc:
+                overviewfile.writelines('min_' + str(i) + ': ' + desc[i] + '\n')
+            else:
+                overviewfile.writelines('min_' + str(i) + ': '+ fes_var[pos_cvs_fes[0]+2] +': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)) + '\n')
+    if cp2k_pdb == False:
+        for i in tqdm.tqdm(range(len(sorted_indx)), desc='printing to file', leave=False):
+            printout(i)
     else:
-        if cp2k_pdb == False:
-            for i in range(len(sorted_indx)):
-                sort(i)
-        else:
-            for i in range(len(sorted_indx)):
-                sort_pdb_cp2k(i)
+        with mp.Pool(processes = usable_cpu, initializer=init_worker_pdb, initargs=(sorted_indx,mp.RLock(),)) as pool:
+            pool.map(printout_pdb_cp2k, range(len(sorted_indx)))
 
-    print(' time needed for postprocessing step: ' + str(round(time.perf_counter() - start3,3)) + ' s')
-    
+    print('time needed for postprocessing step: ' + str(round(time.perf_counter() - start3,3)) + ' s')
     print(' '*terminal_size)
     print(' '*int((terminal_size-len(termin))/2) + termin + ' '*int((terminal_size-len(termin))/2))
