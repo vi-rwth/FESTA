@@ -27,7 +27,6 @@ The goal of this project is to provide a helpful tool for fast and accurate extr
 The following libraries must be manually installed (e.g. using `pip`):
 
 - numpy
-- psutil
 - tqdm
 - matplotlib
 - shapely
@@ -70,11 +69,9 @@ Use "-h" command to access this explanation from the script.<br>
 ### Further information
 
 - Periodicity will be detected and considered automatically. (_if not declared otherwise_)
-- PDB-files created with `CP2K` will be handled by separate reader:
-    + Structures will be fixed relative to the first atom, avoiding jumps between frames.
-    + Only x,y,z, atom-type and atom-number columns will be transferred. Other columns will be filled with zeros.
+- PDB-files created with `CP2K` cannot be opened with MDAnalysis and will therefore be handled by a separate reader.
 
 ## Usage advice
 
 It is advised to use FES-histograms with sufficient bins, since the tolerance of the minimum frame identification and mapping of minima depend on the bin quantity.<br>
-The scripts were tested on Windows and Linux. The output may lack certain visuals if used on Windows.
+The script were tested on Windows and Linux. Performance can be significantly worse on Windows.
