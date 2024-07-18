@@ -31,13 +31,15 @@ parser.add_argument('-stride', dest='stride', default=1, help='Reads only every 
 
 args = parser.parse_args()
     
-def init_polygon(all_points,tolerance,mp_sorted_coords,polygons, barargs):
+def init_polygon(Ga,Gb,Gtolerance,Gmp_sorted_coords,Ggrouped_points, barargs):
     tqdm.tqdm.set_lock(barargs)
-    global Gall_points
-    global Gtolerance
+    global all_points
+    global tolerance
     global managed_list
-    global Gpolygons
-    Gall_points, Gtolerance, managed_list, Gpolygons = all_points, tolerance, mp_sorted_coords, polygons
+    global grouped_points
+    global a
+    global b
+    a,b, tolerance, managed_list, grouped_points = Ga,Gb, Gtolerance, Gmp_sorted_coords, Ggrouped_points
     
 def init_worker_pdb(Gsorted_indx, barargs):
     tqdm.tqdm.set_lock(barargs)
@@ -45,14 +47,16 @@ def init_worker_pdb(Gsorted_indx, barargs):
     sorted_indx = Gsorted_indx
     
 def det_min_frames(j):
-    convex_hull = shapely.geometry.Polygon(Gpolygons[j].convex_hull)
-    if abs(1-(Gpolygons[j].area/convex_hull.area)) > 0.4:
-        Gpolygons[j] = convex_hull
-        print('polygon ' + str(j) + ' did not initialise properly, using convex-hull')
+    all_points = [shapely.geometry.Point(a[i],b[i]) for i in range(len(a))]
+    polygon = shapely.geometry.Polygon(grouped_points[j])
+    convex_hull = shapely.geometry.Polygon(polygon.convex_hull)
+    if abs(1-(polygon.area/convex_hull.area)) > 0.4:
+        polygon = convex_hull
+        print('polygon ' + str(j) + ' did not initialize properly, using convex-hull')
     indxes = []
-    with tqdm.tqdm(total=len(Gall_points), desc='min ' + str(j), position=tqdm.tqdm._get_free_pos()+j, leave=False) as pbar:
-        for i,point in enumerate(Gall_points):
-            if Gpolygons[j].distance(point) <= Gtolerance:
+    with tqdm.tqdm(total=len(all_points), desc='min ' + str(j), position=tqdm.tqdm._get_free_pos()+j, leave=False) as pbar:
+        for i,point in enumerate(all_points):
+            if polygon.distance(point) <= tolerance:
                 indxes.append(i)
             pbar.update(1)
         managed_list[j] = indxes
@@ -64,7 +68,7 @@ def have_common_elem(l1, l2):
             break
     return False
 
-def group_numbers_ex3(numbers, max_diff):
+def ex3(numbers, max_diff):
     separate_groups, subgroup = [], []
     tmplist = copy.deepcopy(numbers)
     seed_elem = tmplist[0]
@@ -314,23 +318,16 @@ if __name__ == '__main__':
         raise
     print('done')
     
-    all_points = [shapely.geometry.Point(a[i],b[i]) for i in range(len(a))]    
     start0 = time.perf_counter() 
-    grouped_points = group_numbers_ex3(outline, args.mindist*2*np.sqrt(tolX**2+tolY**2))
+    grouped_points = ex3(outline, args.mindist*2*np.sqrt(tolX**2+tolY**2))
+    grouped_points = [groups for groups in grouped_points if len(groups)>3]
     print('time needed for CCL step: ' + str(round(time.perf_counter() - start0,3)) + ' s')
 
     start1 = time.perf_counter()
-    try:
-        polygons = [shapely.geometry.Polygon(groups) for groups in grouped_points]
-    except ValueError:
-        clean_gp = [groups for groups in grouped_points if len(groups)>3]
-        polygons = [shapely.geometry.Polygon(groups) for groups in clean_gp]
-        grouped_points = clean_gp
-    
     periodicity = False
     if edge and args.nopbc == False:
         edge_points, pbc = [], []
-        grouped_edges = group_numbers_ex3(edge, 10*2*np.sqrt(tolX**2+tolY**2))
+        grouped_edges = ex3(edge, 10*2*np.sqrt(tolX**2+tolY**2))
         for i in range(len(grouped_edges)):
             if sum(list(map(len, pbc))) >= len(grouped_edges):
                 break
@@ -358,20 +355,23 @@ if __name__ == '__main__':
                 elif i == 0:
                     print('periodicity detected: boundaries will be considered periodic')
                 pbc.append(tmp_lst)
-    print(str(len(polygons)), end = ' ')
+    print(str(len(grouped_points)), end = ' ')
     if periodicity == True:
         print('distinctive areas identified')
     else:
-        print('minima identified')
+        if len(grouped_points) == 1:
+            print('minimum identified')
+        else:
+            print('minima identified')
     
     tot_min_frames =0
-    if len(polygons) > os.cpu_count()-1:
+    if len(grouped_points) > os.cpu_count()-1:
         usable_cpu = os.cpu_count()-1
     else:
-        usable_cpu = len(polygons)
-    mp_sorted_coords = mp.Manager().list([[] for _ in range(len(polygons))])
-    with mp.Pool(processes=usable_cpu, initializer=init_polygon, initargs=(all_points, np.sqrt(tolY**2+tolX**2), mp_sorted_coords,polygons,mp.RLock(),)) as pool:
-        pool.map(det_min_frames, range(len(polygons)))
+        usable_cpu = len(grouped_points)
+    mp_sorted_coords = mp.Manager().list([[] for _ in range(len(grouped_points))])
+    with mp.Pool(processes=usable_cpu, initializer=init_polygon, initargs=(a,b,np.sqrt(tolY**2+tolX**2), mp_sorted_coords,grouped_points,mp.RLock(),)) as pool:
+        pool.map(det_min_frames, range(len(grouped_points)))
     sorted_indx = list(mp_sorted_coords)
     for lists in sorted_indx:
         tot_min_frames += len(lists)
@@ -396,8 +396,11 @@ if __name__ == '__main__':
                 desc.append(fes_var[pos_cvs_fes[0]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[0],4)) + ' '+fes_var[pos_cvs_fes[1]+2]+': ' + str(round(np.mean(grouped_points[i], axis=0)[1],4)))
                 sorted_coords_period.append(elem)
         sorted_indx = sorted_coords_period
-        print(str(len(sorted_indx)) + ' minima identified')
-    
+        print(str(len(sorted_indx)), end=' ')
+        if len(sorted_indx) == 1:
+            print('minimum identified')
+        else:
+            print('minima identified')
     try:
         os.mkdir('minima')
     except FileExistsError:
