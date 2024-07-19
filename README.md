@@ -14,6 +14,7 @@ The goal of this project is to provide a helpful tool for fast and accurate extr
     +  COLVAR file
     +  Trajectory file
     +  Topology file (_if no topology information in trajectory file_)
+- COLVAR file must be written to with the same frequency as the trajectory file
 
 ### Formats
 
@@ -74,4 +75,4 @@ Use "-h" command to access this explanation from the script.<br>
 ## Usage advice
 
 It is advised to use FES-histograms with sufficient bins, since the tolerance of the minimum frame identification and mapping of minima depend on the bin quantity.<br>
-The script were tested on Windows and Linux. Performance can be significantly worse on Windows.
+The script were tested on Windows and Linux. Performance might be worse on Windows.
