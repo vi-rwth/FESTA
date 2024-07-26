@@ -27,9 +27,6 @@ The goal of this project is to provide a helpful tool for fast and accurate extr
 
 The following libraries must be manually installed (e.g. using `pip`):
 
-- numpy
-- tqdm
-- matplotlib
 - shapely
 - MDAnalysis
 
