@@ -52,8 +52,8 @@ Use "-h" command to access this explanation from the script.<br>
                DEFAULT: True.<br>
 "-nopbc"   --- Suppresses the automatic periodicity search (triggered when the minima touch the edges). Expects True/False.<br>
                DEFAULT: False.<br>
-"-mindist" --- Smallest allowed distance, at which areas are considered separate minima (unit: bins of FES-histogram). Must be larger than 1.<br>
-               DEFAULT: 10.<br>
+"-mindist" --- Smallest allowed distance, at which areas are considered separate minima (in CV units). Must be larger than the diagonal of a single bin.<br>
+               DEFAULT: 2% of the FES diagonal.<br>
 "-stride"  --- Reads only every n-th frame of trajectory.<br>
                DEFAULT: 1.<br>
 </pre>
