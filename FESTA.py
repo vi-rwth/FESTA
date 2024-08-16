@@ -16,6 +16,7 @@ import MDAnalysis as mda
 import subprocess
 
 warnings.filterwarnings('ignore', category=UserWarning)
+warnings.filterwarnings('ignore', category=RuntimeWarning)
 
 parser = argparse.ArgumentParser()
 
@@ -70,40 +71,73 @@ def have_common_elem(l1, l2):
             break
     return False
 
-def ex3(numbers, max_diff):
+def hash_gen(tolX, tolY, dimX, outline, bins, max_diff):
+    bin_cutoffX = np.ceil(max_diff/(2*tolX))    
+    bin_cutoffY = np.ceil(max_diff/(2*tolY))
+    new_grid_dimX = np.ceil(dimX/bin_cutoffX)
+    hash_tab = {}
+    for i,b in enumerate(bins):
+        posX = np.ceil((b-int(b/dimX)*dimX)/bin_cutoffX)
+        if posX == 0:
+            posX = new_grid_dimX
+        pos = posX + new_grid_dimX*np.ceil(int(b/dimX)/bin_cutoffY)
+        try:
+            hash_tab[pos].append(outline[i])
+        except KeyError:
+            hash_tab[pos] = [outline[i]]
+    return hash_tab, new_grid_dimX
+
+def ex3(hash_tab, new_grid_dimX, max_diff):
     separate_groups, subgroup = [], []
-    tmplist = copy.deepcopy(numbers)
-    seed_elem = tmplist[0]
-    while any(tmplist):
+    seed_elem_key = list(hash_tab.keys())[0]
+    seed_elem_pos = 0
+    seed_elem = hash_tab[seed_elem_key][seed_elem_pos]
+    collect_bins = set()
+    groups_collect_bins = []
+    while any(hash_tab):
         min_distance = max_diff
         found = False
         try:
-            tmplist.remove(seed_elem)
+            if not len(hash_tab[seed_elem_key]) == 1:
+                del hash_tab[seed_elem_key][seed_elem_pos]
+            else:
+                del hash_tab[seed_elem_key]
             new_group_found = False
-        except ValueError:
+        except KeyError:
             pass
-        for compare_elem in tmplist:
-            if ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5 < min_distance: 
-                found = True
-                min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
-                min_elem = compare_elem
+
+        rel_grid_bins = {seed_elem_key, seed_elem_key+1, seed_elem_key-1, seed_elem_key+new_grid_dimX, seed_elem_key-new_grid_dimX, seed_elem_key+new_grid_dimX+1, seed_elem_key+new_grid_dimX-1, seed_elem_key-new_grid_dimX+1, seed_elem_key-new_grid_dimX-1}
+        for rel_bin in rel_grid_bins:
+            try:
+                for i,compare_elem in enumerate(hash_tab[rel_bin]):
+                    if ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5 < min_distance: 
+                        found = True
+                        min_distance = ((seed_elem[0]-compare_elem[0])**2 + (seed_elem[1]-compare_elem[1])**2)**0.5
+                        min_elem_key = rel_bin
+                        min_elem_pos = i
+            except KeyError:
+                pass
         if found == True and any(subgroup):
+            collect_bins.update(rel_grid_bins)
             if new_group_found == False:
                 subgroup.append(seed_elem)
-            seed_elem = min_elem   
+            seed_elem = hash_tab[min_elem_key][min_elem_pos]
+            seed_elem_key = min_elem_key
+            seed_elem_pos = min_elem_pos
         else:
             if any(subgroup):  
                 separate_groups.append(subgroup)
             subgroup = []
             sec_run = False
-            min_distance = max_diff
-            for group in separate_groups:
+            for k,group in enumerate(separate_groups):
                 dists = np.empty(len(group))
                 for i,elem in enumerate(group):
                     dists[i] = ((seed_elem[0]-elem[0])**2 + (seed_elem[1]-elem[1])**2)**0.5
-                    if dists[i] < min_distance:
+                    if dists[i] <= max_diff:
                         sec_run = True
                 if sec_run == True:
+                    groups_collect_bins[k].update(rel_grid_bins)
+                    indx_save = k
                     try:
                         nih = np.empty(len(dists)-1)
                         for j in range(len(dists)-1):
@@ -115,20 +149,31 @@ def ex3(numbers, max_diff):
             if sec_run == False:
                 subgroup.append(seed_elem)
                 new_group_found = True
-            elif any(tmplist):
-                seed_elem = tmplist[0]
-    
-    connect_groups = []
-    min_distance = max_diff          
+                groups_collect_bins.append(collect_bins)
+                collect_bins = set()
+            elif any(hash_tab):
+                seed_elem_pos = 0
+                curr_key_list = set(hash_tab.keys())
+                if any(curr_key_list.intersection(collect_bins)):
+                    seed_elem_key = list(curr_key_list.intersection(collect_bins))[0]
+                elif any(groups_collect_bins[indx_save].intersection(curr_key_list)):
+                    seed_elem_key = list(groups_collect_bins[indx_save].intersection(curr_key_list))[0]
+                else:
+                    seed_elem_key = list(hash_tab.keys())[0]
+                seed_elem = hash_tab[seed_elem_key][seed_elem_pos]
+
+    connect_groups = []      
     for g1 in range(0,len(separate_groups)):
         for g2 in range(g1+1, len(separate_groups)):
-            dists = np.empty(len(separate_groups[g1])*len(separate_groups[g2]))
-            indx = it.count(0)
-            for e1 in separate_groups[g1]:
-                for e2 in separate_groups[g2]:
-                    dists[next(indx)] = (((e1[0]-e2[0])**2+(e1[1]-e2[1])**2)**0.5)
-            if np.min(dists) <= min_distance:
-                connect_groups.append([g1,g2])
+            if groups_collect_bins[g1]&groups_collect_bins[g2]:
+                dists = np.empty(len(separate_groups[g1])*len(separate_groups[g2]))
+                indx = it.count(0)
+                for e1 in separate_groups[g1]:
+                    for e2 in separate_groups[g2]:
+                        dists[next(indx)] = (((e1[0]-e2[0])**2+(e1[1]-e2[1])**2)**0.5)
+                if np.min(dists) <= max_diff :
+                    connect_groups.append([g1,g2])
+
     grouped_connected_groups = []
     while len(connect_groups)>0:
         first, *rest = connect_groups
@@ -153,10 +198,10 @@ def ex3(numbers, max_diff):
             tot.append(i)
             help_list += separate_groups[i]
         fin_sep_groups.append(help_list)
+    
     for i,elem in enumerate(separate_groups):
         if not i in tot:
             fin_sep_groups.append(elem)
-        
     return fin_sep_groups
     
 def printout(i):
@@ -291,7 +336,7 @@ if __name__ == '__main__':
     elif args.mindist < 2*np.sqrt(tolX**2+tolY**2):
         raise Exception('Minimal separation distance must be larger than diagonal of a single bin.')
     
-    outline_show_a, outline_show_b, edge = [], [], []
+    outline_show_a, outline_show_b, edge, bins = [], [], [], []
     
     for i in tqdm.tqdm(range(len(ener)),desc='collecting outline', leave=False):
         try:
@@ -299,6 +344,7 @@ if __name__ == '__main__':
                 if a_fes[i] == min_a or a_fes[i] == max_a or b_fes[i] == min_b or b_fes[i] == max_b:
                     edge.append([a_fes[i],b_fes[i]])
                 outline.append([a_fes[i],b_fes[i]])
+                bins.append(i+1)
                 outline_show_a.append(abs((a_fes[i]-min_a)/((max_a-min_a)/dimX)))
                 outline_show_b.append(dimY-abs((b_fes[i]-min_b)/((max_b-min_b)/dimY)))
         except IndexError:
@@ -333,11 +379,14 @@ if __name__ == '__main__':
         raise
     print('done')
     
+    print('executing CCL step ... ', end='', flush=True)
     start0 = time.perf_counter()
-    grouped_points = ex3(outline, args.mindist)
+    hash_list, new_dimX = hash_gen(tolX, tolY, dimX, outline, bins, args.mindist)
+    grouped_points = ex3(hash_list, new_dimX, args.mindist)
     grouped_points = [groups for groups in grouped_points if len(groups)>3]
+    print('done')
     print(f'time needed for CCL step: {round(time.perf_counter() - start0,3)} s')
-
+    
     start1 = time.perf_counter()
     periodicity = False
     if edge and args.nopbc == 'False':
