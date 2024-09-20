@@ -2,6 +2,6 @@ message: "If you use this software, please cite it as below."
 authors:
 - family-names: "Istomin"
   given-names: "Valentin"
-title: "Metadynamics Structure Extraction Tool (MSET)"
+title: "Free Energy Surface Trajectory Analysis (FESTA)"
 date-released: 2023-05-19
 url: "https://github.com/vi-rwth/structure-from-fes.git"
