@@ -1,7 +1,12 @@
-message: "If you use this software, please cite it as below."
-authors:
-- family-names: "Istomin"
-  given-names: "Valentin"
-title: "Free Energy Surface Trajectory Analysis (FESTA)"
-date-released: 2023-05-19
-url: "https://github.com/vi-rwth/structure-from-fes.git"
+@article{doi:10.1021/acs.jcim.4c01022,
+author = {Istomin, Valentin and Piccini, GiovanniMaria},
+title = {FESTA: A Polygon-Based Approach for Extracting Relevant Structures from Free Energy Surfaces Obtained in Molecular Simulations},
+journal = {Journal of Chemical Information and Modeling},
+volume = {0},
+number = {0},
+pages = {null},
+year = {0},
+doi = {10.1021/acs.jcim.4c01022},
+note = {PMID: 39374116},
+URL = {https://doi.org/10.1021/acs.jcim.4c01022},
+eprint = {https://doi.org/10.1021/acs.jcim.4c01022}}
