@@ -2,7 +2,7 @@
 >by Valentin Istomin and GiovanniMaria Piccini
 
 <p align="center">
-  <img width="1.562*300" height="300" src="https://github.com/vi-rwth/FESTA/assets/133004724/b2c86b88-cc14-4ff3-af7b-c8e693cea11c">
+  <img width="469" height="300" src="https://github.com/vi-rwth/FESTA/assets/133004724/b2c86b88-cc14-4ff3-af7b-c8e693cea11c">
 </p>
 
 The goal of this project is to provide a helpful tool for fast and accurate extraction of trajectory frames from 2D CV-based enhanced-sampling molecular dynamics simulations, by identifying minima via a free-energy threshold set by the user.
